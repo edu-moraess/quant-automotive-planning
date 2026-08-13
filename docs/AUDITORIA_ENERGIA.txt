@@ -1,0 +1,42 @@
+  fonte_energia  configuracoes  marcas  modelos  eficiencia_mediana  co2_mediano_g_milha  custo_epa_anual_mediano_usd  custo_energia_100mi_mediano_usd
+       Gasolina           1891      42      811                22.0                399.0                       3050.0                        18.375000
+   Eletricidade            782      31      537                90.0                  0.0                        850.0                         7.329287
+Híbrido plug-in            104      22       73                22.0                161.0                       3450.0                              NaN
+         Diesel             36       2       22                23.0                445.0                       3450.0                        23.054348
+     Hidrogênio              6       2        4                64.5                  0.0                          NaN                              NaN
+
+--- Gasolina | 1891 registros
+   make               model  year        fuelType1 powertrain  comb08  combE  custo_energia_100mi_usd
+ Toyota               Prius  2026 Regular Gasoline    Híbrido      57    0.0                 7.092105
+ Toyota               Prius  2025 Regular Gasoline    Híbrido      57    0.0                 7.092105
+ Toyota               Prius  2027 Regular Gasoline    Híbrido      55    0.0                 7.350000
+ Toyota           Prius AWD  2026 Regular Gasoline    Híbrido      54    0.0                 7.486111
+Hyundai Elantra Hybrid Blue  2025 Regular Gasoline    Híbrido      54    0.0                 7.486111
+Hyundai Elantra Hybrid Blue  2026 Regular Gasoline    Híbrido      54    0.0                 7.486111
+ Toyota           Prius AWD  2025 Regular Gasoline    Híbrido      54    0.0                 7.486111
+ Toyota           Prius AWD  2027 Regular Gasoline    Híbrido      53    0.0                 7.627358
+medianas: {'comb08': 22.0, 'combE': 0.0, 'custo_energia_100mi_usd': 18.375000000000004}
+
+--- Diesel | 36 registros
+     make                           model  year fuelType1 powertrain  comb08  combE  custo_energia_100mi_usd
+Chevrolet                   Silverado 2WD  2025    Diesel     Diesel      26    0.0                20.394231
+      GMC                      Sierra 2WD  2025    Diesel     Diesel      26    0.0                20.394231
+Chevrolet                   Silverado 2WD  2026    Diesel     Diesel      25    0.0                21.210000
+      GMC                      Sierra 2WD  2026    Diesel     Diesel      25    0.0                21.210000
+Chevrolet Silverado (with Sport Mode) 4WD  2026    Diesel     Diesel      24    0.0                22.093750
+Chevrolet                       Tahoe 2WD  2025    Diesel     Diesel      24    0.0                22.093750
+Chevrolet                   Silverado 4WD  2025    Diesel     Diesel      24    0.0                22.093750
+      GMC                      Sierra 4WD  2025    Diesel     Diesel      24    0.0                22.093750
+medianas: {'comb08': 23.0, 'combE': 0.0, 'custo_energia_100mi_usd': 23.054347826086957}
+
+--- Eletricidade | 782 registros
+   make                               model  year   fuelType1         powertrain  comb08   combE  custo_energia_100mi_usd
+  Lucid    Air Pure RWD with 19 inch wheels  2025 Electricity Elétrico a bateria     146 23.1410                 4.558777
+  Lucid    Air Pure RWD with 19 inch wheels  2026 Electricity Elétrico a bateria     146 23.1410                 4.558777
+  Tesla                Model 3 Standard RWD  2026 Electricity Elétrico a bateria     139 24.3033                 4.787750
+  Tesla  Model Y Standard RWD (18in Wheels)  2026 Electricity Elétrico a bateria     138 24.3451                 4.795985
+  Tesla              Model 3 Long Range RWD  2025 Electricity Elétrico a bateria     137 24.6398                 4.854041
+  Tesla                 Model 3 Premium RWD  2026 Electricity Elétrico a bateria     137 24.6398                 4.854041
+Hyundai              Ioniq 6 Standard Range  2025 Electricity Elétrico a bateria     135 25.0000                 4.925000
+  Lucid Air Touring AWD with 19 inch wheels  2026 Electricity Elétrico a bateria     134 25.1902                 4.962469
+medianas: {'comb08': 90.0, 'combE': 37.18545, 'custo_energia_100mi_usd': 7.329286500000001}

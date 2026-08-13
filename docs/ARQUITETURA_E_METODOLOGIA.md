@@ -63,6 +63,7 @@ A EPA disponibiliza dados de economia de combustível para veículos leves por a
 | `year`, `VClass` | Recorte temporal e segmentação de produto. |
 | `fuelType1`, `atvType` | Classificação de propulsão. |
 | `city08`, `highway08`, `comb08` | Eficiência publicada em MPG/MPGe. |
+| `combE` | Consumo elétrico combinado em kWh por 100 milhas para configurações aplicáveis. |
 | `co2TailpipeGpm` | Emissões de escapamento em gramas por milha. |
 | `range`, `rangeCity`, `rangeHwy` | Autonomia publicada para configurações aplicáveis. |
 | `fuelCost08`, `youSaveSpend` | Custo anual de energia e comparação publicada. |
@@ -85,6 +86,19 @@ As métricas são calculadas sobre **configurações registradas na EPA**, não 
 | Mix eletrificado | Proporção de configurações elétricas ou híbridas | Composição tecnológica do catálogo, não participação de mercado. |
 | Presença temporal da marca | Último ano-modelo observado no campo `make` | Cobertura do snapshot EPA; não infere marca ativa, propriedade ou venda. |
 | Autonomia máxima | Maior `range` publicado | Atributo de configuração, não desempenho real em todas as condições. |
+
+## Energia, combustível e correlações
+
+A camada de energia une os atributos de eficiência da EPA a três séries públicas: preço nacional de gasolina regular (`GASREGW`) e diesel (`GASDESW`) da EIA, distribuídas pelo FRED, e preço médio urbano de eletricidade (`APU000072610`) do BLS, também distribuído pelo FRED [7] [8]. As séries semanais de combustíveis são agregadas por média de mês; a eletricidade já é mensal. Como as unidades não são diretamente iguais, a tendência é exibida como índice base 100, enquanto os preços nominais continuam disponíveis nos indicadores.
+
+| Caso comparável | Fórmula | Limite |
+|---|---|---|
+| Gasolina | \(Preço_{gal} / MPG \times 100\) | Preço nacional, não local. |
+| Diesel | \(Preço_{gal} / MPG \times 100\) | Preço nacional, não local. |
+| Elétrico a bateria | \(combE \times Preço_{kWh}\) | Tarifa urbana média, não tarifa específica. |
+| Híbrido plug-in e outros combustíveis | Não calculado | Evita supor divisão elétrica/combustível ou preços não harmonizados. |
+
+O painel usa correlação de Spearman entre eficiência, custo anual EPA, custo energético de referência, CO₂ de escapamento, cilindrada e número de cilindros. A plataforma apresenta o coeficiente \(\rho\) e o número de pares válidos para cada associação. Essas correlações resumem associação monotônica no filtro aplicado; não provam causalidade.
 
 ## Cenário operacional
 
@@ -112,7 +126,7 @@ Essa formulação fornece uma estrutura transparente para discutir trade-offs en
 
 ## Atualização e reprodutibilidade
 
-O repositório mantém *snapshots* locais das duas bases para permitir execução reprodutível. A aplicação consulta o FRED quando disponível e utiliza o snapshot local em caso de indisponibilidade. O snapshot EPA é lido localmente, e sua fonte oficial está documentada em `data/SOURCES.md`.
+O repositório mantém *snapshots* locais das três camadas de dados para permitir execução reprodutível. A aplicação consulta o FRED quando disponível e utiliza o snapshot local em caso de indisponibilidade. Os snapshots EPA e de energia são lidos localmente, e suas fontes oficiais estão documentadas em `data/SOURCES.md`.
 
 ## Referências
 
@@ -121,4 +135,6 @@ O repositório mantém *snapshots* locais das duas bases para permitir execuçã
 [3]: https://www.epa.gov/greenvehicles/50-years-epas-automotive-trends-report "U.S. EPA — 50 Years of Automotive Trends Report"
 [4]: https://www.wessa.net/download/stl.pdf "Cleveland et al. (1990) — STL: A Seasonal-Trend Decomposition Procedure Based on Loess"
 [5]: https://doi.org/10.1093/biomet/65.2.297 "Ljung & Box (1978) — On a Measure of Lack of Fit in Time Series Models"
-[6]: https://doi.org/10.1214/aos/1176344552 "Efron (1979) — Bootstrap Methods: Another Look at the Jackknife"
+[6]: https://doi.org/10.1214/aos/1176344552 "Efron (1979) — Bootstrap Methods"
+[7]: https://www.eia.gov/petroleum/gasdiesel/ "U.S. EIA — Gasoline and Diesel Fuel Update"
+[8]: https://fred.stlouisfed.org/series/APU000072610 "FRED / BLS — Electricity per Kilowatt-Hour"

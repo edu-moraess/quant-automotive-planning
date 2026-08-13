@@ -21,6 +21,7 @@ NUMERIC_COLUMNS = [
     "city08",
     "highway08",
     "comb08",
+    "combE",
     "co2TailpipeGpm",
     "fuelCost08",
     "youSaveSpend",

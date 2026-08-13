@@ -42,3 +42,12 @@ A EPA também descreve que os dados de teste usados para estimativas de economia
 
 [1]: https://www.fueleconomy.gov/feg/download.shtml "FuelEconomy.gov — Download Fuel Economy Data"
 [2]: https://www.epa.gov/compliance-and-fuel-economy-data/data-cars-used-testing-fuel-economy "EPA — Data on Cars used for Testing Fuel Economy"
+
+## Preços de energia para análise de custo de uso
+
+A plataforma passará a incluir séries históricas nacionais de preços de energia para contextualizar os atributos de eficiência da EPA. Para gasolina e diesel, serão usados os preços publicados pela U.S. Energy Information Administration no **Gasoline and Diesel Fuel Update**, acessíveis também pelas séries FRED `GASREGW` e `GASDESW`. A página da EIA reporta preços nacionais semanais em dólares por galão, incluindo impostos, e disponibiliza procedimentos de coleta e medidas de variabilidade [3].
+
+Para eletricidade, será usada a série mensal FRED `APU000072610`, atribuída ao U.S. Bureau of Labor Statistics, que mede o preço médio de eletricidade por quilowatt-hora na média urbana dos Estados Unidos [4]. As séries serão harmonizadas mensalmente apenas para comparar preço de energia e custo de uso; elas não devem ser interpretadas como tarifas de uma região, concessionária ou motorista específico.
+
+[3]: https://www.eia.gov/petroleum/gasdiesel/ "EIA — Gasoline and Diesel Fuel Update"
+[4]: https://fred.stlouisfed.org/series/APU000072610 "FRED / BLS — Electricity per Kilowatt-Hour in U.S. City Average"

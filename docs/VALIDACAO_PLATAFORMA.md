@@ -17,3 +17,11 @@ A versão refinada iniciou com o recorte padrão de ano-modelo 2025–2027 e ren
 A revisão visual confirmou dois ajustes: a **Visão integrada** agora apresenta previsão base e faixa p10–p90, enquanto **Mercado & Validação** preserva a série histórica e os diagnósticos; assim, as abas não repetem o mesmo gráfico. Em **Eficiência & Transição**, o gráfico inicial foi substituído por barras horizontais com percentuais externos, eliminando a sobreposição de rótulos da pizza anterior. A revisão foi feita no recorte padrão recente de 2025–2027.
 
 A auditoria de marcas foi aberta e validada na interface. O registro lista o nome literal EPA, quantidade de configurações e modelos, primeiro e último ano observados e uma presença temporal do snapshot. Exemplos visíveis incluem Chevrolet, Ford, GMC, Dodge, BMW, Toyota, Mercedes-Benz, Nissan, Audi e Volkswagen com registros EPA em 2025–2027. A interface não apresenta esse status como atividade comercial ou participação de mercado.
+
+A primeira revisão da versão redesenhada confirmou que o resumo executivo passou a exibir quatro indicadores, duas visualizações principais e uma única nota de interpretação. A hierarquia está mais enxuta do que a versão exportada no PDF e o carregamento das abas, filtros e fontes ocorreu sem erro visível.
+
+A aba Mercado & Forecast foi revisada visualmente: quatro métricas resumem o resultado, dois gráficos concentram histórico e backtest, e os diagnósticos residuais ficam recolhidos em expander. A estrutura eliminou a repetição com a aba Resumo e preservou as métricas de validação temporal.
+
+As abas Portfólio e Planejamento também foram verificadas. Portfólio concentra quatro métricas, duas leituras técnicas e um scorecard limitado às principais marcas; o registro integral permanece recolhido. Planejamento centraliza cenário operacional, sensibilidade e tabela de cenários, deixando o plano mensal para exportação sob demanda.
+
+A aba Método & Dados foi validada com uma tabela concisa de fontes, fórmulas de custo por 100 milhas, limites das correlações e links para auditoria, pesquisa e proveniência. A revisão final abrangeu Resumo, Portfólio, Energia & Combustível, Mercado & Forecast, Planejamento e Método & Dados.
