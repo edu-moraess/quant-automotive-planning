@@ -25,3 +25,7 @@ A aba Mercado & Forecast foi revisada visualmente: quatro métricas resumem o re
 As abas Portfólio e Planejamento também foram verificadas. Portfólio concentra quatro métricas, duas leituras técnicas e um scorecard limitado às principais marcas; o registro integral permanece recolhido. Planejamento centraliza cenário operacional, sensibilidade e tabela de cenários, deixando o plano mensal para exportação sob demanda.
 
 A aba Método & Dados foi validada com uma tabela concisa de fontes, fórmulas de custo por 100 milhas, limites das correlações e links para auditoria, pesquisa e proveniência. A revisão final abrangeu Resumo, Portfólio, Energia & Combustível, Mercado & Forecast, Planejamento e Método & Dados.
+
+A versão integrada foi aberta com o seletor padrão em **1984–2027**, confirmando que o catálogo completo passou a ser o universo inicial da interface. Nenhum recorte de 2025–2027 permanece como padrão; filtros ficam disponíveis apenas para exploração opcional.
+
+A aba Modelos integrados foi validada na interface em sequência vertical: métricas OLS, aviso de limitação, gráfico temporal, coeficientes, métricas da rede neural, gráfico de validação e tabela de maiores erros aparecem um após o outro. A validação confirma 47.423 configurações de treino e 2.819 configurações de teste para a rede neural, sem recorte visual de 2025–2027 no restante do catálogo.

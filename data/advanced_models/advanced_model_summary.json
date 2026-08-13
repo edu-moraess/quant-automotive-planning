@@ -1,0 +1,32 @@
+{
+  "econometria_energia": {
+    "mae": 0.584394074307789,
+    "rmse": 0.727108200476632,
+    "r2": -0.2537945287314316,
+    "observacoes": 24,
+    "r2_treino": 0.8116502582132747,
+    "inicio_treino": "1994-03",
+    "fim_treino": "2024-06",
+    "inicio_teste": "2024-07",
+    "fim_teste": "2026-07",
+    "variaveis": 17
+  },
+  "rede_neural_eficiencia": {
+    "mae": 4.329822262291653,
+    "rmse": 7.463422609486359,
+    "r2": 0.9467083185852241,
+    "observacoes": 2819,
+    "inicio_treino": 1984,
+    "fim_treino": 2024,
+    "inicio_teste": 2025,
+    "fim_teste": 2027,
+    "variaveis_numericas": 3,
+    "variaveis_categoricas": 8,
+    "iteracoes": 109
+  },
+  "amostras": {
+    "econometria_total": 388,
+    "neural_treino": 47423,
+    "neural_teste": 2819
+  }
+}
