@@ -11,7 +11,7 @@ A plataforma combina o FRED `TOTALSA`, série de vendas agregadas de veículos l
 | Módulo | Capacidades analíticas |
 |---|---|
 | Visão integrada | KPIs de mercado, produto e transição tecnológica em uma única camada. |
-| Produto & Marcas | Comparação de fabricantes, modelos, segmentos EPA, amplitude de portfólio e posicionamento técnico. |
+| Produto & Marcas | Comparação de fabricantes, modelos, segmentos EPA, amplitude de portfólio, posicionamento técnico e auditoria temporal do campo `make`. |
 | Eficiência & Transição | Propulsão, MPG/MPGe, CO₂ de escapamento, autonomia, custo anual publicado e evolução por ano-modelo. |
 | Mercado & Forecast | Qualidade, ADF, STL, ACF/PACF, backtest walk-forward, resíduos e seleção de modelo. |
 | Planejamento | Previsão com faixa p10–p90, cenário operacional, capacidade, estoque, backlog e sensibilidade. |
@@ -31,7 +31,7 @@ O repositório inclui *snapshots* das duas bases em `data/`, permitindo executar
 
 A camada de mercado trata a série com checagens de qualidade, teste Dickey-Fuller aumentado, decomposição STL e análise de autocorrelação. Três modelos são comparados por validação temporal walk-forward: referência sazonal, Holt-Winters aditivo e regressão Ridge com defasagens. O modelo com menor MAPE médio é reajustado sobre o histórico, e seus resíduos fora da amostra são reamostrados por *bootstrap* para produzir cenários empíricos p10–p90 [4] [5] [6].
 
-A camada de produto cria uma taxonomia de propulsão para registros EPA e consolida métricas por marca, modelo e segmento. As métricas de “configurações” medem registros de produto na base pública; elas não representam unidades vendidas. A documentação metodológica completa está em [`docs/ARQUITETURA_E_METODOLOGIA.md`](docs/ARQUITETURA_E_METODOLOGIA.md).
+A camada de produto cria uma taxonomia de propulsão para registros EPA e consolida métricas por marca, modelo e segmento. As métricas de “configurações” medem registros de produto na base pública; elas não representam unidades vendidas. Os nomes de marcas são valores literais do campo `make` da EPA, por isso o catálogo também inclui marcas históricas. O painel apresenta primeiro e último ano-modelo por nome, sem inferir atividade comercial. A auditoria reproduzível está em [`docs/AUDITORIA_CATALOGO_EPA.md`](docs/AUDITORIA_CATALOGO_EPA.md), e a documentação metodológica completa está em [`docs/ARQUITETURA_E_METODOLOGIA.md`](docs/ARQUITETURA_E_METODOLOGIA.md).
 
 ## Execução local
 
@@ -57,6 +57,7 @@ A aplicação será aberta no endereço indicado pelo Streamlit, usualmente `htt
 ├── data/EPA_vehicles_snapshot.csv        # Snapshot EPA por configuração de veículo
 ├── data/SOURCES.md                       # Proveniência e limites das fontes
 ├── docs/ARQUITETURA_E_METODOLOGIA.md     # Arquitetura, métodos e referências
+├── docs/AUDITORIA_CATALOGO_EPA.md        # Origem e cobertura temporal dos nomes de marca
 ├── tests/                                # Testes unitários e de integração
 ├── .streamlit/config.toml                # Tema e configuração visual
 ├── requirements.txt                      # Dependências Python

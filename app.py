@@ -28,6 +28,7 @@ load_vehicle_data = vehicle_module.load_vehicle_data
 filter_vehicles = vehicle_module.filter_vehicles
 portfolio_kpis = vehicle_module.portfolio_kpis
 brand_summary = vehicle_module.brand_summary
+brand_registry = vehicle_module.brand_registry
 model_summary = vehicle_module.model_summary
 segment_summary = vehicle_module.segment_summary
 powertrain_summary = vehicle_module.powertrain_summary
@@ -177,10 +178,30 @@ def segment_chart(summary: pd.DataFrame) -> go.Figure:
     return chart_layout(fig, 470)
 
 
-def powertrain_donut(summary: pd.DataFrame) -> go.Figure:
-    fig = px.pie(summary, names="powertrain", values="configuracoes", hole=0.62, color="powertrain", color_discrete_map=POWERTRAIN_COLORS, title="Composição tecnológica do portfólio filtrado")
-    fig.update_traces(textinfo="percent+label", hovertemplate="<b>%{label}</b><br>Configurações: %{value:,}<br>Participação: %{percent}<extra></extra>")
-    return chart_layout(fig, 420)
+def powertrain_composition_chart(summary: pd.DataFrame) -> go.Figure:
+    """Mostra o mix tecnológico sem sobrepor rótulos em uma pizza pequena."""
+    display = summary.sort_values("participacao_pct", ascending=True).copy()
+    maximum = float(display["participacao_pct"].max()) if not display.empty else 100.0
+    fig = px.bar(
+        display,
+        x="participacao_pct",
+        y="powertrain",
+        orientation="h",
+        color="powertrain",
+        color_discrete_map=POWERTRAIN_COLORS,
+        text="participacao_pct",
+        labels={"powertrain": "Propulsão", "participacao_pct": "Participação das configurações (%)"},
+        title="Composição tecnológica do portfólio filtrado",
+    )
+    fig.update_traces(
+        texttemplate="%{x:.1f}%",
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="<b>%{y}</b><br>Participação: %{x:.1f}%<br><extra></extra>",
+    )
+    fig.update_xaxes(range=[0, maximum * 1.18], ticksuffix="%", title="Participação das configurações")
+    fig.update_yaxes(title=None)
+    return chart_layout(fig, 390)
 
 
 def powertrain_trend_chart(trend: pd.DataFrame) -> go.Figure:
@@ -289,6 +310,7 @@ except Exception as error:
 
 vehicle_meta = vehicle_universe_metadata(vehicle_data)
 year_bounds = (vehicle_meta["ano_inicial"], vehicle_meta["ano_final"])
+default_product_years = (max(year_bounds[0], year_bounds[1] - 2), year_bounds[1])
 
 with st.sidebar:
     st.markdown("## QUANT")
@@ -296,8 +318,8 @@ with st.sidebar:
     st.markdown("---")
     with st.form("parameters_form"):
         st.markdown("### Universo de produto")
-        selected_years = st.slider("Ano-modelo", min_value=year_bounds[0], max_value=year_bounds[1], value=year_bounds)
-        selected_makes = st.multiselect("Fabricantes", options=sorted(vehicle_data["make"].unique()), placeholder="Todos os fabricantes")
+        selected_years = st.slider("Ano-modelo", min_value=year_bounds[0], max_value=year_bounds[1], value=default_product_years)
+        selected_makes = st.multiselect("Marcas EPA (campo make)", options=sorted(vehicle_data["make"].unique()), placeholder="Todas as marcas do catálogo")
         selected_powertrains = st.multiselect("Propulsão", options=sorted(vehicle_data["powertrain"].unique()), placeholder="Todas as tecnologias")
         selected_segments = st.multiselect("Segmento EPA", options=sorted(vehicle_data["VClass"].unique()), placeholder="Todos os segmentos")
         st.markdown("### Mercado e planejamento")
@@ -320,6 +342,7 @@ with st.sidebar:
 filtered_vehicles = filter_vehicles(vehicle_data, selected_years, selected_makes, selected_powertrains, selected_segments)
 product_kpis = portfolio_kpis(filtered_vehicles)
 brand_data = brand_summary(filtered_vehicles)
+brand_registry_data = brand_registry(vehicle_data)
 model_data = model_summary(filtered_vehicles)
 segment_data = segment_summary(filtered_vehicles)
 powertrain_data = powertrain_summary(filtered_vehicles)
@@ -396,12 +419,12 @@ for column, (step, title, description) in zip(method_columns, method_steps):
     column.markdown(f'<div class="method-card"><div class="step">Camada {step}</div><strong>{title}</strong><span>{description}</span></div>', unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
-tab_overview, tab_product, tab_efficiency, tab_market, tab_planning, tab_method = st.tabs(["Visão integrada", "Produto & Marcas", "Eficiência & Transição", "Mercado & Forecast", "Planejamento", "Metodologia & Dados"])
+tab_overview, tab_product, tab_efficiency, tab_market, tab_planning, tab_method = st.tabs(["Visão integrada", "Produto & Marcas", "Eficiência & Transição", "Mercado & Validação", "Planejamento", "Metodologia & Dados"])
 
 with tab_overview:
     market_col, portfolio_col = st.columns([1.1, 1])
     with market_col:
-        st.plotly_chart(history_chart(market_data), use_container_width=True, config={"displaylogo": False}, key="overview_market_history")
+        st.plotly_chart(forecast_chart(market_data, forecast, winner), use_container_width=True, config={"displaylogo": False}, key="overview_market_forecast")
     with portfolio_col:
         if brand_data.empty:
             st.info("Os filtros atuais não retornaram configurações de produto.")
@@ -416,7 +439,7 @@ with tab_overview:
         }
     )
     st.dataframe(priorities, use_container_width=True, hide_index=True)
-    st.markdown(f'<p class="source-note">Mercado: {market_result["source_label"]}, {market_data["data"].min():%m/%Y}–{market_data["data"].max():%m/%Y}. Produto: snapshot EPA {vehicle_meta["ano_inicial"]}–{vehicle_meta["ano_final"]}; filtros ativos: {selected_years[0]}–{selected_years[1]}.</p>', unsafe_allow_html=True)
+    st.markdown(f'<p class="source-note">Visão executiva: previsão de mercado p10–p90 e estrutura de portfólio no recorte atual. Mercado: {market_result["source_label"]}, {market_data["data"].min():%m/%Y}–{market_data["data"].max():%m/%Y}. Produto: snapshot EPA {vehicle_meta["ano_inicial"]}–{vehicle_meta["ano_final"]}; filtros ativos: {selected_years[0]}–{selected_years[1]}.</p>', unsafe_allow_html=True)
 
 with tab_product:
     st.markdown("### Arquitetura de portfólio")
@@ -435,8 +458,14 @@ with tab_product:
         with brand_right:
             st.plotly_chart(brand_positioning_chart(brand_data), use_container_width=True, config={"displaylogo": False}, key="product_brand_positioning")
         st.markdown("#### Scorecard por marca")
-        brand_display = brand_data.rename(columns={"make": "Marca", "configuracoes": "Configurações", "modelos": "Modelos", "segmentos": "Segmentos", "mpg_medio": "MPG/MPGe médio", "co2_medio_g_milha": "CO₂ médio (g/milha)", "custo_anual_medio_usd": "Custo anual médio (US$)", "participacao_eletrificada_pct": "Mix eletrificado (%)", "autonomia_max_milhas": "Autonomia máxima (milhas)"})
-        st.dataframe(brand_display.style.format({"Configurações": "{:,.0f}", "Modelos": "{:,.0f}", "Segmentos": "{:,.0f}", "MPG/MPGe médio": "{:.1f}", "CO₂ médio (g/milha)": "{:.0f}", "Custo anual médio (US$)": "US$ {:,.0f}", "Mix eletrificado (%)": "{:.1f}%", "Autonomia máxima (milhas)": "{:.0f}"}), use_container_width=True, hide_index=True)
+        brand_display = brand_data.rename(columns={"make": "Marca EPA (make)", "configuracoes": "Configurações", "modelos": "Modelos", "segmentos": "Segmentos", "ano_inicial": "Primeiro ano", "ano_final": "Último ano", "mpg_medio": "MPG/MPGe médio", "co2_medio_g_milha": "CO₂ médio (g/milha)", "custo_anual_medio_usd": "Custo anual médio (US$)", "participacao_eletrificada_pct": "Mix eletrificado (%)", "autonomia_max_milhas": "Autonomia máxima (milhas)"})
+        st.dataframe(brand_display.style.format({"Configurações": "{:,.0f}", "Modelos": "{:,.0f}", "Segmentos": "{:,.0f}", "Primeiro ano": "{:.0f}", "Último ano": "{:.0f}", "MPG/MPGe médio": "{:.1f}", "CO₂ médio (g/milha)": "{:.0f}", "Custo anual médio (US$)": "US$ {:,.0f}", "Mix eletrificado (%)": "{:.1f}%", "Autonomia máxima (milhas)": "{:.0f}"}), use_container_width=True, hide_index=True)
+        st.markdown("#### Auditoria de nomes de marca")
+        st.info("Os nomes são os valores literais do campo `make` publicado pela EPA. O catálogo cobre décadas; por isso, a presença de um nome não equivale a uma marca comercialmente ativa. O indicador abaixo mostra somente o último ano-modelo registrado no snapshot.")
+        registry_display = brand_registry_data.rename(columns={"make": "Marca EPA (make)", "configuracoes": "Configurações", "modelos": "Modelos", "ano_inicial": "Primeiro ano", "ano_final": "Último ano", "presenca_no_snapshot": "Presença temporal no snapshot"})
+        with st.expander("Abrir registro de marcas e cobertura temporal da EPA"):
+            st.dataframe(registry_display.style.format({"Configurações": "{:,.0f}", "Modelos": "{:,.0f}", "Primeiro ano": "{:.0f}", "Último ano": "{:.0f}"}), use_container_width=True, hide_index=True, height=460)
+        st.caption("Auditoria reprodutível disponível em `docs/AUDITORIA_CATALOGO_EPA.md`; fonte oficial: FuelEconomy.gov / U.S. EPA.")
         st.markdown("#### Estrutura por segmento")
         segment_left, segment_right = st.columns([1.1, 1])
         with segment_left:
@@ -452,7 +481,7 @@ with tab_efficiency:
     else:
         powertrain_left, powertrain_right = st.columns([0.85, 1.15])
         with powertrain_left:
-            st.plotly_chart(powertrain_donut(powertrain_data), use_container_width=True, config={"displaylogo": False}, key="efficiency_powertrain_mix")
+            st.plotly_chart(powertrain_composition_chart(powertrain_data), use_container_width=True, config={"displaylogo": False}, key="efficiency_powertrain_mix")
         with powertrain_right:
             powertrain_display = powertrain_data.rename(columns={"powertrain": "Propulsão", "configuracoes": "Configurações", "marcas": "Marcas", "modelos": "Modelos", "mpg_medio": "MPG/MPGe médio", "co2_medio_g_milha": "CO₂ médio (g/milha)", "autonomia_max_milhas": "Autonomia máxima (milhas)", "participacao_pct": "Participação (%)"})
             st.dataframe(powertrain_display.style.format({"Configurações": "{:,.0f}", "Marcas": "{:,.0f}", "Modelos": "{:,.0f}", "MPG/MPGe médio": "{:.1f}", "CO₂ médio (g/milha)": "{:.0f}", "Autonomia máxima (milhas)": "{:.0f}", "Participação (%)": "{:.1f}%"}), use_container_width=True, hide_index=True, height=420)
@@ -468,7 +497,8 @@ with tab_efficiency:
         st.caption("MPG/MPGe, CO₂ de escapamento, autonomia e custo anual são estimativas publicadas para configurações específicas. Métricas não representam participação de vendas ou qualidade de produto.")
 
 with tab_market:
-    st.markdown("### Mercado agregado e validação preditiva")
+    st.markdown("### Mercado agregado, diagnóstico e validação preditiva")
+    st.caption("Esta aba concentra a série histórica, o confronto de modelos e os diagnósticos fora da amostra. A aba Visão integrada mostra somente a projeção executiva e o retrato de portfólio.")
     market_left, market_right = st.columns([1.25, 1])
     with market_left:
         st.plotly_chart(history_chart(market_data), use_container_width=True, config={"displaylogo": False}, key="market_history")

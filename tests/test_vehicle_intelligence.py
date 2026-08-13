@@ -6,6 +6,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from vehicle_intelligence import (  # noqa: E402
+    brand_registry,
     brand_summary,
     classify_powertrain,
     filter_vehicles,
@@ -49,3 +50,16 @@ def test_filters_and_brand_summary_keep_real_records():
     assert kpis["configuracoes"] == len(filtered)
     assert not summary.empty
     assert not powertrains.empty
+
+
+def test_brand_registry_preserves_literal_epa_names_and_temporal_coverage():
+    root = Path(__file__).resolve().parents[1]
+    data = load_vehicle_data(root / "data" / "EPA_vehicles_snapshot.csv")
+    registry = brand_registry(data)
+    tesla = registry.loc[registry["make"] == "Tesla"].iloc[0]
+    pontiac = registry.loc[registry["make"] == "Pontiac"].iloc[0]
+    assert {"make", "ano_inicial", "ano_final", "presenca_no_snapshot"}.issubset(registry.columns)
+    assert tesla["ano_final"] >= 2025
+    assert "Registro EPA" in tesla["presenca_no_snapshot"]
+    assert pontiac["ano_final"] < 2025
+    assert "Somente histórico" in pontiac["presenca_no_snapshot"]

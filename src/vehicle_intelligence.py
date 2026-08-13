@@ -139,6 +139,8 @@ def brand_summary(data: pd.DataFrame, min_records: int = 1) -> pd.DataFrame:
             configuracoes=("id", "count"),
             modelos=("modelo_chave", "nunique"),
             segmentos=("VClass", "nunique"),
+            ano_inicial=("year", "min"),
+            ano_final=("year", "max"),
             mpg_medio=("eficiencia_valida", "mean"),
             co2_medio_g_milha=("co2_valido", "mean"),
             custo_anual_medio_usd=("custo_anual_valido", "mean"),
@@ -149,6 +151,39 @@ def brand_summary(data: pd.DataFrame, min_records: int = 1) -> pd.DataFrame:
     )
     summary = summary[summary["configuracoes"] >= min_records]
     return summary.sort_values(["configuracoes", "mpg_medio"], ascending=[False, False]).reset_index(drop=True)
+
+
+def brand_registry(data: pd.DataFrame, recent_window_years: int = 3) -> pd.DataFrame:
+    """Audita os nomes literais de marca publicados no campo ``make`` da EPA.
+
+    O status é temporal e descritivo: informa apenas se existe observação no
+    intervalo recente do próprio snapshot. Ele não infere atividade comercial,
+    propriedade societária ou participação de mercado de uma marca.
+    """
+    if data.empty:
+        return pd.DataFrame()
+    latest_year = int(data["year"].max())
+    recent_floor = latest_year - recent_window_years + 1
+    registry = (
+        data.groupby("make", as_index=False)
+        .agg(
+            configuracoes=("id", "count"),
+            modelos=("modelo_chave", "nunique"),
+            ano_inicial=("year", "min"),
+            ano_final=("year", "max"),
+        )
+        .assign(
+            presenca_no_snapshot=lambda frame: np.where(
+                frame["ano_final"] >= recent_floor,
+                f"Registro EPA em {recent_floor}–{latest_year}",
+                f"Somente histórico até {{ano_final}}",
+            )
+        )
+    )
+    registry["presenca_no_snapshot"] = registry.apply(
+        lambda row: row["presenca_no_snapshot"].format(ano_final=int(row["ano_final"])), axis=1
+    )
+    return registry.sort_values(["ano_final", "configuracoes", "make"], ascending=[False, False, True]).reset_index(drop=True)
 
 
 def model_summary(data: pd.DataFrame, min_records: int = 1) -> pd.DataFrame:

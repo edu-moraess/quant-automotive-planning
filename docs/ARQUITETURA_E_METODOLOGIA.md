@@ -70,6 +70,8 @@ A EPA disponibiliza dados de economia de combustível para veículos leves por a
 
 A plataforma constrói uma taxonomia legível de propulsão: combustão, diesel, flex/etanol, gás natural, híbrido, híbrido plug-in, elétrico a bateria e célula a combustível. Essa classificação permite observar a composição tecnológica do universo filtrado e sua evolução por ano-modelo.
 
+Os nomes de marca aparecem literalmente como publicados no campo `make`. Como o arquivo cobre décadas de ano-modelo, inclui fabricantes atuais e nomes históricos. A plataforma não normaliza conglomerados nem deduz atividade comercial: a auditoria de marcas informa somente primeiro ano, último ano e presença temporal no próprio snapshot. O relatório reprodutível está em [`docs/AUDITORIA_CATALOGO_EPA.md`](AUDITORIA_CATALOGO_EPA.md).
+
 ## Métricas de portfólio
 
 As métricas são calculadas sobre **configurações registradas na EPA**, não sobre unidades vendidas. Por isso, “configurações” mede diversidade de registros de produto, enquanto “modelos” mede a quantidade de combinações únicas de fabricante e modelo presentes no filtro.
@@ -81,6 +83,7 @@ As métricas são calculadas sobre **configurações registradas na EPA**, não 
 | MPG/MPGe médio | Média de `comb08` válida | Eficiência publicada para as configurações filtradas. |
 | CO₂ médio | Média de `co2TailpipeGpm` válida | Emissões de escapamento; veículos elétricos podem não ter valor comparável. |
 | Mix eletrificado | Proporção de configurações elétricas ou híbridas | Composição tecnológica do catálogo, não participação de mercado. |
+| Presença temporal da marca | Último ano-modelo observado no campo `make` | Cobertura do snapshot EPA; não infere marca ativa, propriedade ou venda. |
 | Autonomia máxima | Maior `range` publicado | Atributo de configuração, não desempenho real em todas as condições. |
 
 ## Cenário operacional
