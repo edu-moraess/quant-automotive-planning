@@ -412,14 +412,20 @@ def correlation_chart(correlations: pd.DataFrame) -> go.Figure:
 
 
 def history_chart(data: pd.DataFrame) -> go.Figure:
+    data_start = pd.Timestamp(data["data"].min())
+    data_end = pd.Timestamp(data["data"].max())
+    decade_years = list(range(((data_start.year // 10) + 1) * 10, data_end.year, 10))
+    tick_values = [pd.Timestamp(year=year, month=1, day=1) for year in decade_years] + [data_end]
+    tick_labels = [str(year) for year in decade_years] + [data_end.strftime("%b/%Y")]
     fig = px.line(
         data,
         x="data",
         y="vendas_saar_milhoes",
         labels={"data": "Data", "vendas_saar_milhoes": "Milhões SAAR"},
-        title="Mercado agregado de veículos leves",
+        title=f"Mercado agregado de veículos leves · histórico até {data_end:%b/%Y}",
     )
     fig.update_traces(line={"color": BLUE, "width": 2.25})
+    fig.update_xaxes(range=[data_start, data_end], tickmode="array", tickvals=tick_values, ticktext=tick_labels)
     return style_chart(fig, 440, legend=False)
 
 
@@ -1023,7 +1029,7 @@ with tab_energy:
 
 with tab_market:
     st.markdown("### Mercado agregado, validação temporal e incerteza")
-    st.caption(market_source_caption)
+    st.caption(f"{market_source_caption} O eixo histórico destaca explicitamente o último mês disponível.")
     vertical_metric("Modelo selecionado", winner)
     vertical_metric("MAPE médio", f"{winner_metrics['mape_medio']:.2f}%")
     vertical_metric("MAE médio", f"{winner_metrics['mae_medio']:.3f} milhões SAAR")

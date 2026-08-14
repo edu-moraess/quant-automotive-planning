@@ -55,3 +55,7 @@ O perfil da atualização FRED encontrou cerca de 1,5–2,3 s na consulta de red
 A abertura compactada foi validada visualmente. O cabeçalho passou a ocupar menos altura, o estado do FRED aparece como uma única linha recolhida e as abas surgem imediatamente abaixo desse status. Os quatro indicadores de universo e a nota de escopo foram movidos para dentro da aba **Resumo**, eliminando o longo bloco fixo que empurrava a navegação para baixo.
 
 A correção visual foi validada. O texto superior foi reduzido para `Automotive Intelligence`, sem subtítulo em maiúsculas, eliminando o recorte observado no topo. Os indicadores do Resumo agora usam linhas compactas em sequência vertical; configurações, marcas, modelos, filtro, modelo selecionado, MAPE e mix eletrificado aparecem sem cartões altos nem os grandes intervalos verticais anteriores. A navegação continua imediatamente abaixo do status FRED recolhido.
+
+Na primeira abertura após o reinício para validação da cobertura temporal, a página ainda estava concluindo a execução inicial do mercado; a inspeção visual do eixo será repetida após a renderização completa.
+
+A validação da aba **Mercado & Forecast** confirmou que a série FRED possui 607 observações até **07/2026**. O gráfico histórico passou a exibir o título `histórico até Jul/2026` e o texto da aba esclarece que a última marca do eixo representa o último mês disponível; as marcas anteriores em 1980, 1990, 2000, 2010 e 2020 são apenas referências decenais do eixo, não o fim dos dados.
