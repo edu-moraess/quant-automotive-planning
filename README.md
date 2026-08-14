@@ -1,104 +1,136 @@
-# Quant Automotive Intelligence
+# Quant Automotive Intelligence & Planning
 
-A **Quant Automotive Intelligence** é uma plataforma Streamlit para análise integrada de mercado, produto, eficiência tecnológica e cenários operacionais no setor automotivo. Ela conecta uma série mensal agregada de veículos leves com um catálogo público de configurações por fabricante e modelo, transformando dados oficiais em uma experiência de análise navegável e auditável.
+A **Quant Automotive Intelligence & Planning** é uma plataforma Streamlit para análise integrada de mercado, produto, energia, modelagem e planejamento operacional no setor automotivo. O projeto transforma fontes públicas rastreáveis em uma leitura quantitativa sequencial, com separação explícita entre fatos observados, modelos estimados e hipóteses operacionais.
 
-A plataforma combina o FRED `TOTALSA`, série de vendas agregadas de veículos leves nos Estados Unidos, com a base pública da U.S. Environmental Protection Agency (EPA), que descreve veículos por fabricante, modelo, ano-modelo, segmento, combustível, eficiência, emissões, autonomia e custo anual estimado [1] [2]. A camada de energia acrescenta preços nacionais de gasolina e diesel da EIA/FRED e preço médio urbano de eletricidade do BLS/FRED para contextualizar custo energético e eficiência [3] [4].
+A plataforma integra a série mensal agregada `TOTALSA` do FRED, o catálogo público da U.S. Environmental Protection Agency (EPA) e séries observadas de preços de gasolina, diesel e eletricidade da EIA/FRED/BLS. Ela utiliza *snapshots* versionados, validação de esquema, proveniência e contingência local para preservar reprodutibilidade mesmo quando uma fonte externa está indisponível.
 
-> As fontes possuem papéis distintos. O FRED mede o mercado agregado, sem vendas por marca. A EPA descreve atributos técnicos de configurações de produto, sem vendas, participação de mercado ou rentabilidade. A interface preserva essa separação para evitar inferências incorretas.
+> **Limite de interpretação.** O FRED mede o mercado agregado de veículos leves dos Estados Unidos; não contém vendas por marca. A EPA descreve configurações técnicas de produto; não contém participação de mercado, unidades vendidas ou rentabilidade. A interface preserva essa separação e não cria inferências por marca, modelo ou combustível que os dados não suportam.
 
 ## Capacidades
 
-| Módulo | Capacidades analíticas |
+| Camada | Entrega quantitativa |
 |---|---|
-| Resumo | Universo completo de 1984–2027, forecast p10–p90 e uma leitura sequencial de produto. |
-| Portfólio | Marcas, segmentos, posicionamento técnico e auditoria temporal do campo `make`. |
-| Energia & Combustível | Preços reais de energia, custo de referência por 100 milhas, mix de combustível e correlação de Spearman. |
-| Mercado & Forecast | Histórico, backtest walk-forward, resíduos e seleção de modelo. |
-| Modelos integrados | OLS com energia observada, coeficientes auditáveis e rede neural de eficiência com validação temporal. |
-| Planejamento | Cenários p10–p90, capacidade, estoque, backlog e sensibilidade. |
-| Método & Dados | Fonte, fórmulas, escopo, limites e documentação reprodutível. |
+| **Resumo** | Cobertura do universo completo, leitura da composição de produto, intervalo preditivo e distinção entre dado observado e cenário. |
+| **Portfólio EPA** | Análise por marca, modelo, segmento e tecnologia; posicionamento de eficiência e emissões; auditoria temporal do campo `make`. |
+| **Energia & combustível** | Séries reais de energia, custo de referência por 100 milhas, sensibilidade a choques de preço, correlação de Spearman e comparação tecnológica controlada. |
+| **Mercado & forecast** | Diagnósticos temporais, *backtest* walk-forward, comparação de quatro modelos, métricas múltiplas e intervalo empírico p10–p90. |
+| **Modelos integrados** | OLS temporal com diagnóstico de VIF, Durbin–Watson e Breusch–Pagan; MLP de eficiência com validação temporal, importância por permutação e erro por propulsão. |
+| **Planejamento** | Programação linear com capacidade regular e extra, estoque inicial e de segurança, backlog, setup, custo e cenários Downside/Base/Upside/Stress. |
+| **Método & dados** | Saúde e proveniência de snapshots, fórmulas, escopo, limitações e documentação técnica. |
 
 ## Fontes de dados
 
-| Fonte | Cobertura | Utilização |
+| Fonte | Cobertura | Uso na plataforma |
 |---|---|---|
-| [FRED — Total Vehicle Sales (`TOTALSA`)](https://fred.stlouisfed.org/series/TOTALSA) | Série mensal agregada de veículos leves em milhões SAAR | Dinâmica de mercado, previsão e cenários. |
-| [U.S. EPA / FuelEconomy.gov](https://www.fueleconomy.gov/feg/download.shtml) | Configurações de veículos leves por fabricante, modelo, classe, combustível, consumo, emissões e autonomia | Inteligência de produto e tecnologia. |
-| [EIA / FRED — `GASREGW` e `GASDESW`](https://www.eia.gov/petroleum/gasdiesel/) | Preços nacionais semanais de gasolina regular e diesel, consolidados mensalmente | Contexto de preço por galão e custo de referência de combustível. |
-| [BLS / FRED — `APU000072610`](https://fred.stlouisfed.org/series/APU000072610) | Preço médio urbano mensal de eletricidade por kWh | Contexto de preço elétrico e custo de referência de BEVs. |
-| [EPA Automotive Trends](https://www.epa.gov/greenvehicles/50-years-epas-automotive-trends-report) | Contexto histórico de eficiência, emissões e tecnologia no mercado de veículos leves | Interpretação setorial e referência. |
+| [FRED — Total Vehicle Sales (`TOTALSA`)](https://fred.stlouisfed.org/series/TOTALSA) | Série mensal agregada de veículos leves, em milhões SAAR | Dinâmica de mercado, forecast e demanda de referência. |
+| [EPA / FuelEconomy.gov](https://www.fueleconomy.gov/feg/download.shtml) | Catálogo de configurações por marca, modelo, ano-modelo, classe, combustível, consumo, emissões e autonomia | Inteligência de portfólio, tecnologia, eficiência, emissões e rede neural. |
+| [EIA / FRED — gasolina e diesel](https://www.eia.gov/petroleum/gasdiesel/) | Séries nacionais semanais, consolidadas para frequência mensal | Preços por galão, custo energético e econometria temporal. |
+| [BLS / FRED — eletricidade (`APU000072610`)](https://fred.stlouisfed.org/series/APU000072610) | Preço médio urbano mensal de eletricidade por kWh | Custo de referência de BEVs, econometria e sensibilidade. |
 
-O repositório inclui *snapshots* das três camadas de dados em `data/`, permitindo executar o painel mesmo em indisponibilidade momentânea da fonte online. A interface abre o catálogo completo, de **1984 a 2027**, por padrão; filtros são uma opção de exploração e não reduzem os dados de origem. Consulte [`data/SOURCES.md`](data/SOURCES.md) para a proveniência, cobertura e os limites de cada fonte.
+Os dados locais em `data/` preservam os *snapshots* utilizados. O artefato `data/data_health.json` registra cobertura, campos, ausências, duplicidades, integridade e hash SHA-256. Consulte [`data/SOURCES.md`](data/SOURCES.md) para a proveniência detalhada.
 
 ## Metodologia
 
-A camada de mercado trata a série com checagens de qualidade, teste Dickey-Fuller aumentado, decomposição STL e análise de autocorrelação. Três modelos são comparados por validação temporal walk-forward: referência sazonal, Holt-Winters aditivo e regressão Ridge com defasagens. O modelo com menor MAPE médio é reajustado sobre o histórico, e seus resíduos fora da amostra são reamostrados por *bootstrap* para produzir cenários empíricos p10–p90 [6] [7] [8].
+### Mercado e forecast probabilístico
 
-A camada de produto cria uma taxonomia de propulsão para registros EPA e consolida métricas por marca, modelo e segmento. As métricas de “configurações” medem registros de produto na base pública; elas não representam unidades vendidas. Os nomes de marcas são valores literais do campo `make` da EPA, por isso o catálogo também inclui marcas históricas. O painel apresenta primeiro e último ano-modelo por nome, sem inferir atividade comercial. A auditoria reproduzível está em [`docs/AUDITORIA_CATALOGO_EPA.md`](docs/AUDITORIA_CATALOGO_EPA.md).
+O motor de mercado valida esquema e frequência, consolida a série em base mensal e executa diagnósticos de estacionariedade, decomposição STL e autocorrelação. Quatro candidatos são comparados em validação temporal *walk-forward*: **referência sazonal**, **Holt–Winters aditivo**, **Ridge com defasagens** e **AutoReg sazonal**. Cada dobra é avaliada por MAPE, sMAPE, WAPE, MASE e RMSE; a seleção é feita com a métrica configurada de forma explícita.
 
-A camada de energia mantém unidades separadas: gasolina e diesel são medidos em US$/galão; eletricidade, em US$/kWh. Ela exibe as séries históricas como índice base 100 e calcula custo energético por 100 milhas somente para gasolina, diesel e veículos elétricos a bateria, pois são os casos com preço e consumo harmonizados. Correlações de Spearman resumem associações monotônicas entre eficiência, custo, emissões e motorização no recorte filtrado, sem inferir causalidade.
+O modelo escolhido é reajustado sobre o histórico. Seus erros fora da amostra alimentam reamostragem *bootstrap* iid ou em blocos móveis, conforme configuração, para construir cenários probabilísticos p10, p50 e p90. Portanto, o intervalo representa incerteza empírica de previsão, e não um limite causal ou garantia operacional.
 
-A camada de modelos integra os datasets sem inventar chaves inexistentes. Uma regressão OLS temporal usa a interseção mensal de mercado e preços de energia, com os últimos 24 meses reservados para teste. Uma rede neural MLP estima eficiência EPA (`comb08`) a partir de características técnicas de 47.423 configurações de treino (1984–2024) e é avaliada em 2.819 configurações recentes (2025–2027). O OLS é apresentado como análise explicativa quando seu teste não é preditivamente forte; a rede neural reporta MAE, RMSE e \(R^2\) fora da amostra. A arquitetura está documentada em [`docs/ARQUITETURA_VERTICAL_E_MODELOS.md`](docs/ARQUITETURA_VERTICAL_E_MODELOS.md).
+### Produto, tecnologia e energia
+
+O catálogo EPA recebe validação de colunas e taxonomia de propulsão. As métricas de "configurações" representam registros técnicos no catálogo oficial, nunca unidades vendidas. As marcas correspondem literalmente ao campo `make` da EPA, incluindo nomes históricos quando presentes.
+
+A camada de energia mantém unidades separadas: gasolina e diesel em US$/galão; eletricidade em US$/kWh. O custo de referência por 100 milhas é calculado somente em tecnologias para as quais consumo e preço são harmonizáveis. Correlação de Spearman resume associações monotônicas no recorte selecionado e não deve ser interpretada como causalidade.
+
+### Modelos integrados e interpretabilidade
+
+A OLS usa a janela mensal comum entre mercado e energia e reserva os 24 meses finais para teste. Seus diagnósticos incluem VIF, Durbin–Watson, Breusch–Pagan e desempenho fora da amostra. Quando o R² de teste é fraco ou negativo, o painel o declara como limitação e trata o resultado como descritivo, não preditivo.
+
+A rede neural MLP estima a eficiência EPA `comb08` com atributos técnicos do catálogo. O corte por ano-modelo separa treino e teste, eliminando vazamento temporal. Além de MAE, RMSE e R² fora da amostra, os artefatos registram importância por permutação e erro por classe de propulsão para tornar a interpretação auditável.
+
+### Planejamento operacional
+
+O planejamento resolve um problema linear com PuLP/CBC. Participação assumida, horizonte, capacidade regular, capacidade extra, estoque inicial, estoque de segurança, custos de produção, manutenção, backlog, desvio de segurança e setup são todos controles explícitos. Os cenários **Downside**, **Base**, **Upside** e **Stress** aplicam choques declarados à demanda e retornam produção, estoque e backlog por período. A recomendação é uma regra transparente baseada no resultado do plano, não uma previsão oculta.
+
+## Arquitetura e contratos de dados
+
+```text
+.
+├── app.py                                  # Interface Streamlit vertical e cache de artefatos
+├── src/
+│   ├── config.py                            # Dataclasses imutáveis de fontes, forecast e planejamento
+│   ├── ingestion.py                         # Timeout, retry, validação e fallback local
+│   ├── data_quality.py                      # Perfis, hashes e saúde de snapshots
+│   ├── analysis.py                          # Mercado, backtest, forecast e diagnóstico temporal
+│   ├── planning.py                          # Programação linear de produção, estoque e backlog
+│   ├── scenarios.py                         # Cenários de demanda e sensibilidade de energia
+│   ├── vehicle_intelligence.py              # Catálogo EPA, propulsão, marca, segmento e produto
+│   ├── energy_intelligence.py               # Séries de energia, custo por 100 mi e Spearman
+│   └── advanced_models.py                   # OLS temporal, diagnósticos e MLP de eficiência
+├── data/
+│   ├── TOTALSA_snapshot.csv                 # Snapshot FRED de contingência
+│   ├── EPA_vehicles_snapshot.csv            # Snapshot EPA por configuração
+│   ├── energy_price_snapshot.csv            # Snapshot mensal de energia
+│   ├── data_health.json / .csv              # Saúde, integridade e proveniência
+│   └── advanced_models/                     # Métricas, coeficientes e interpretabilidade
+├── scripts/
+│   ├── fetch_energy_prices.py                # Atualização reprodutível de energia
+│   ├── build_data_health.py                  # Geração do perfil de saúde dos snapshots
+│   └── train_advanced_models.py              # Reexecução de OLS e rede neural
+├── tests/                                   # Testes unitários e de integração
+├── docs/                                    # Arquitetura, diagnóstico, auditorias e referências
+├── pyproject.toml                           # Configuração Ruff
+├── requirements.txt                         # Dependências de execução e qualidade
+└── docs/ci/quality.yml                      # Template GitHub Actions de qualidade
+```
+
+A arquitetura detalhada está em [`docs/ARQUITETURA_ALVO.md`](docs/ARQUITETURA_ALVO.md); o diagnóstico da versão de origem, em [`docs/DIAGNOSTICO_TECNICO_INICIAL.md`](docs/DIAGNOSTICO_TECNICO_INICIAL.md).
 
 ## Execução local
 
-Use Python 3.10 ou superior. Crie um ambiente virtual, instale as dependências e inicie o painel:
+Use Python 3.11 ou superior. Em um ambiente virtual:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-A aplicação será aberta no endereço indicado pelo Streamlit, usualmente `http://localhost:8501`.
+O Streamlit normalmente abre em `http://localhost:8501`.
 
-## Estrutura
+## Atualização e reprodutibilidade
 
-```text
-.
-├── app.py                                # Interface Streamlit e visualizações
-├── src/analysis.py                       # Mercado, forecast e otimização
-├── src/vehicle_intelligence.py           # Produto, marca, modelo, eficiência e propulsão
-├── src/energy_intelligence.py            # Preços de energia, custo por 100 milhas e correlação
-├── src/advanced_models.py                # OLS temporal e rede neural de eficiência
-├── data/TOTALSA_snapshot.csv             # Snapshot FRED de contingência
-├── data/EPA_vehicles_snapshot.csv        # Snapshot EPA por configuração de veículo
-├── data/energy_price_snapshot.csv        # Snapshot FRED de gasolina, diesel e eletricidade
-├── data/advanced_models/                 # Métricas, coeficientes e validações versionadas
-├── data/SOURCES.md                       # Proveniência e limites das fontes
-├── scripts/fetch_energy_prices.py        # Atualização reproduzível das séries de energia
-├── scripts/train_advanced_models.py      # Treino reproduzível de OLS e rede neural
-├── docs/ARQUITETURA_E_METODOLOGIA.md     # Arquitetura, métodos e referências
-├── docs/ARQUITETURA_DE_INFORMACAO_REFINADA.md # Arquitetura de interação e visualização
-├── docs/AUDITORIA_CATALOGO_EPA.md        # Origem e cobertura temporal dos nomes de marca
-├── docs/PESQUISA_REFERENCIAS_E_DADOS.md  # Referências de interface e fontes complementares
-├── docs/ARQUITETURA_VERTICAL_E_MODELOS.md # Interface vertical e metodologia dos modelos
-├── docs/AUDITORIA_INTEGRACAO_TOTAL.md     # Cobertura e conexão válida entre os datasets
-├── tests/                                # Testes unitários e de integração
-├── .streamlit/config.toml                # Tema e configuração visual
-├── requirements.txt                      # Dependências Python
-└── docs/ci/quality.yml                   # Template de integração contínua
+```bash
+# Atualiza o snapshot de energia quando as fontes públicas estiverem acessíveis.
+python scripts/fetch_energy_prices.py
+
+# Recalcula a saúde e a proveniência dos snapshots versionados.
+python scripts/build_data_health.py
+
+# Reexecuta OLS temporal e a rede neural com os snapshots locais.
+python scripts/train_advanced_models.py
 ```
+
+A ingestão utiliza timeout, tentativas com espera exponencial, validação de esquema e *fallback* local. O painel apresenta o status da fonte utilizada, evitando que uma indisponibilidade de rede silenciosamente altere a origem dos resultados.
 
 ## Testes e qualidade
 
 ```bash
-python -m pytest -q
-python -m compileall -q app.py src scripts
-python scripts/fetch_energy_prices.py    # opcional: atualiza o snapshot de energia
-python scripts/train_advanced_models.py   # retreina OLS e rede neural nos snapshots
+python -m compileall -q app.py src scripts tests
+ruff check .
+ruff format --check .
+pytest -q
 ```
 
-O template de integração contínua está em `docs/ci/quality.yml`. Para ativá-lo no GitHub, copie-o para `.github/workflows/quality.yml` e faça um *commit* com uma credencial que tenha permissão para criar ou atualizar *workflows*.
+O projeto possui testes de ingestão e qualidade, forecast, planejamento, cenários, integração, catálogo EPA, energia e modelos avançados. O template de CI está em `docs/ci/quality.yml`; para ativá-lo, copie o arquivo para `.github/workflows/quality.yml` em um *commit* autorizado a criar ou atualizar *workflows* no GitHub.
 
 ## Referências
 
-[1]: https://fred.stlouisfed.org/series/TOTALSA "FRED — Total Vehicle Sales (TOTALSA)"
-[2]: https://www.fueleconomy.gov/feg/download.shtml "U.S. EPA / FuelEconomy.gov — Download Fuel Economy Data"
-[3]: https://www.eia.gov/petroleum/gasdiesel/ "U.S. EIA — Gasoline and Diesel Fuel Update"
-[4]: https://fred.stlouisfed.org/series/APU000072610 "FRED / BLS — Electricity per Kilowatt-Hour"
-[5]: https://www.epa.gov/greenvehicles/50-years-epas-automotive-trends-report "U.S. EPA — 50 Years of Automotive Trends Report"
-[6]: https://www.wessa.net/download/stl.pdf "Cleveland et al. (1990) — STL"
-[7]: https://doi.org/10.1093/biomet/65.2.297 "Ljung & Box (1978)"
-[8]: https://doi.org/10.1214/aos/1176344552 "Efron (1979) — Bootstrap Methods"
+- [1] [FRED — Total Vehicle Sales (`TOTALSA`)](https://fred.stlouisfed.org/series/TOTALSA)
+- [2] [U.S. EPA / FuelEconomy.gov — Download Fuel Economy Data](https://www.fueleconomy.gov/feg/download.shtml)
+- [3] [U.S. EIA — Gasoline and Diesel Fuel Update](https://www.eia.gov/petroleum/gasdiesel/)
+- [4] [FRED / BLS — Electricity per Kilowatt-Hour](https://fred.stlouisfed.org/series/APU000072610)
+- [5] [Cleveland et al. (1990) — STL](https://www.wessa.net/download/stl.pdf)
+- [6] [Efron (1979) — Bootstrap Methods](https://doi.org/10.1214/aos/1176344552)

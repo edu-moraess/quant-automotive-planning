@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -25,7 +25,13 @@ def test_classify_powertrain_recognizes_main_technologies():
             "range": [300, 25, 0, 0, 0],
         }
     )
-    assert list(classify_powertrain(frame)) == ["Elétrico a bateria", "Híbrido plug-in", "Híbrido", "Diesel", "Célula a combustível"]
+    assert list(classify_powertrain(frame)) == [
+        "Elétrico a bateria",
+        "Híbrido plug-in",
+        "Híbrido",
+        "Diesel",
+        "Célula a combustível",
+    ]
 
 
 def test_load_vehicle_snapshot_and_build_portfolio_metrics():

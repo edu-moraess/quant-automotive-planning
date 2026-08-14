@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -54,7 +54,9 @@ def test_converter_demanda_uses_market_share_and_monthly_saar():
 
 def test_production_plan_respects_capacity_and_balance():
     demand = np.array([100, 150, 80])
-    result = resolver_plano_producao(demand, capacidade=120, estoque_inicial=0, custo_producao=1, custo_estoque=1, custo_ruptura=100)
+    result = resolver_plano_producao(
+        demand, capacidade=120, estoque_inicial=0, custo_producao=1, custo_estoque=1, custo_ruptura=100
+    )
     assert result["status"] == "Optimal"
     assert max(result["producao"]) <= 120
     for index, demand_value in enumerate(demand):

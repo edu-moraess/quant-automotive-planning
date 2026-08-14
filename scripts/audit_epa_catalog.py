@@ -1,4 +1,5 @@
 """Gera um relatório reprodutível de auditoria do snapshot EPA incluído no projeto."""
+
 from __future__ import annotations
 
 import hashlib
@@ -37,11 +38,11 @@ O arquivo `EPA_vehicles_snapshot.csv` é uma cópia local do arquivo público `v
 
 | Indicador | Valor |
 |---|---:|
-| Registros de configuração no snapshot | {metadata['observacoes']:,} |
-| Valores distintos em `make` | {metadata['marcas']:,} |
-| Combinações distintas de marca e modelo | {metadata['modelos']:,} |
-| Primeiro ano-modelo | {metadata['ano_inicial']} |
-| Último ano-modelo | {metadata['ano_final']} |
+| Registros de configuração no snapshot | {metadata["observacoes"]:,} |
+| Valores distintos em `make` | {metadata["marcas"]:,} |
+| Combinações distintas de marca e modelo | {metadata["modelos"]:,} |
+| Primeiro ano-modelo | {metadata["ano_inicial"]} |
+| Último ano-modelo | {metadata["ano_final"]} |
 | Marcas com registro EPA em {recent_floor}–{latest_year} | {len(recent):,} |
 | Marcas somente históricas antes de {recent_floor} | {len(historical):,} |
 | SHA-256 do snapshot | `{digest}` |
@@ -68,7 +69,9 @@ O catálogo EPA é adequado para analisar especificações, eficiência e abrang
 [2]: https://www.epa.gov/compliance-and-fuel-economy-data/data-cars-used-testing-fuel-economy "EPA — Data on Cars used for Testing Fuel Economy"
 """
     (ROOT / "docs" / "AUDITORIA_CATALOGO_EPA.md").write_text(report, encoding="utf-8")
-    print(f"Relatório criado: docs/AUDITORIA_CATALOGO_EPA.md | {metadata['observacoes']:,} registros | {metadata['marcas']:,} valores make")
+    print(
+        f"Relatório criado: docs/AUDITORIA_CATALOGO_EPA.md | {metadata['observacoes']:,} registros | {metadata['marcas']:,} valores make"
+    )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -17,7 +17,12 @@ def main() -> None:
     for source in ["Gasolina", "Diesel", "Eletricidade"]:
         subset = recent[recent["fonte_energia"].eq(source)]
         print(f"\n--- {source} | {len(subset)} registros")
-        print(subset[["make", "model", "year", "fuelType1", "powertrain", "comb08", "combE", "custo_energia_100mi_usd"]].sort_values("custo_energia_100mi_usd").head(8).to_string(index=False))
+        print(
+            subset[["make", "model", "year", "fuelType1", "powertrain", "comb08", "combE", "custo_energia_100mi_usd"]]
+            .sort_values("custo_energia_100mi_usd")
+            .head(8)
+            .to_string(index=False)
+        )
         print("medianas:", subset[["comb08", "combE", "custo_energia_100mi_usd"]].median(numeric_only=True).to_dict())
 
 

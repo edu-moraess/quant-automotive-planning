@@ -4,6 +4,7 @@ A camada combina séries oficiais de preço de energia com atributos técnicos d
 EPA. Preços nacionais servem como referência macro; não representam tarifas
 locais, contratos de frota ou desembolso individual.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,13 +17,26 @@ ENERGY_PRICE_COLUMNS = {
     "diesel_usd_gal": "Diesel",
     "eletricidade_usd_kwh": "Eletricidade",
 }
+ENERGY_REQUIRED_COLUMNS = {"data", *ENERGY_PRICE_COLUMNS}
 
 
 def load_energy_prices(source: str | Path) -> pd.DataFrame:
-    """Lê o snapshot mensal de preços nacionais de energia."""
+    """Lê, valida e ordena o snapshot mensal de preços nacionais de energia."""
     prices = pd.read_csv(source, parse_dates=["data"])
+    missing_columns = sorted(ENERGY_REQUIRED_COLUMNS.difference(prices.columns))
+    if missing_columns:
+        raise ValueError(f"Energia: schema inválido; faltam colunas {missing_columns}.")
+    if prices.empty:
+        raise ValueError("Energia: snapshot vazio.")
+    prices["data"] = pd.to_datetime(prices["data"], errors="coerce")
+    if prices["data"].isna().any():
+        raise ValueError("Energia: datas inválidas no snapshot.")
+    if prices["data"].duplicated().any():
+        raise ValueError("Energia: datas mensais duplicadas no snapshot.")
     for column in ENERGY_PRICE_COLUMNS:
         prices[column] = pd.to_numeric(prices[column], errors="coerce")
+        if (prices[column].dropna() < 0).any():
+            raise ValueError(f"Energia: preços negativos detectados em {column}.")
     return prices.sort_values("data").reset_index(drop=True)
 
 
@@ -30,8 +44,12 @@ def latest_energy_snapshot(prices: pd.DataFrame) -> pd.DataFrame:
     """Retorna última observação disponível por série, preservando a data."""
     rows: list[dict[str, object]] = []
     for column, label in ENERGY_PRICE_COLUMNS.items():
-        valid = prices.dropna(subset=[column])[["data", column]].iloc[-1]
-        rows.append({"energia": label, "coluna": column, "data": valid["data"], "preco": float(valid[column])})
+        valid = prices.dropna(subset=[column])[["data", column]]
+        if valid.empty:
+            rows.append({"energia": label, "coluna": column, "data": pd.NaT, "preco": np.nan})
+            continue
+        latest = valid.iloc[-1]
+        rows.append({"energia": label, "coluna": column, "data": latest["data"], "preco": float(latest[column])})
     return pd.DataFrame(rows)
 
 
@@ -74,7 +92,10 @@ def classify_energy_source(data: pd.DataFrame) -> pd.Series:
 
 
 def _latest_price_value(prices: pd.DataFrame, column: str) -> float:
-    return float(prices.dropna(subset=[column]).iloc[-1][column])
+    valid = prices.dropna(subset=[column])
+    if valid.empty:
+        raise ValueError(f"Energia: não há observação válida para {column}.")
+    return float(valid.iloc[-1][column])
 
 
 def add_energy_cost_estimate(data: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
@@ -152,7 +173,21 @@ def strongest_spearman_pairs(correlations: pd.DataFrame, pair_counts: pd.DataFra
         for right in labels[i + 1 :]:
             rho = correlations.loc[left, right]
             if pd.notna(rho):
-                rows.append({"indicador_a": left, "indicador_b": right, "rho_spearman": float(rho), "n": int(pair_counts.loc[left, right])})
+                rows.append(
+                    {
+                        "indicador_a": left,
+                        "indicador_b": right,
+                        "rho_spearman": float(rho),
+                        "n": int(pair_counts.loc[left, right]),
+                    }
+                )
     if not rows:
         return pd.DataFrame(columns=["indicador_a", "indicador_b", "rho_spearman", "n"])
-    return pd.DataFrame(rows).assign(abs_rho=lambda frame: frame["rho_spearman"].abs()).sort_values(["abs_rho", "n"], ascending=[False, False]).head(limit).drop(columns="abs_rho").reset_index(drop=True)
+    return (
+        pd.DataFrame(rows)
+        .assign(abs_rho=lambda frame: frame["rho_spearman"].abs())
+        .sort_values(["abs_rho", "n"], ascending=[False, False])
+        .head(limit)
+        .drop(columns="abs_rho")
+        .reset_index(drop=True)
+    )

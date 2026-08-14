@@ -1,4 +1,5 @@
 """Audita a cobertura integral de mercado, catálogo EPA e preços de energia."""
+
 from __future__ import annotations
 
 import sys
@@ -28,9 +29,7 @@ def main() -> None:
         f"| `{field}` | {int(vehicles[field].notna().sum()):,} | {pct(int(vehicles[field].notna().sum()), n)} |"
         for field in fields
     )
-    powertrains = (
-        vehicles.groupby("powertrain").size().sort_values(ascending=False).reset_index(name="configuracoes")
-    )
+    powertrains = vehicles.groupby("powertrain").size().sort_values(ascending=False).reset_index(name="configuracoes")
     powertrain_rows = "\n".join(
         f"| {row.powertrain} | {int(row.configuracoes):,} | {pct(int(row.configuracoes), n)} |"
         for row in powertrains.itertuples(index=False)
@@ -45,13 +44,13 @@ def main() -> None:
 
 | Camada | Registros | Cobertura | Papel analítico |
 |---|---:|---|---|
-| Mercado FRED `TOTALSA` | {len(market):,} meses | {market['observation_date'].min():%m/%Y}–{market['observation_date'].max():%m/%Y} | Série agregada de demanda de veículos leves. |
-| Catálogo EPA `vehicles.csv` | {n:,} configurações | {meta['ano_inicial']}–{meta['ano_final']} | Produto, combustível, eficiência, emissões e tecnologia. |
-| Preços de energia | {len(energy):,} meses no painel consolidado | {energy['data'].min():%m/%Y}–{energy['data'].max():%m/%Y} | Preço nacional de gasolina/diesel e preço urbano médio de eletricidade. |
+| Mercado FRED `TOTALSA` | {len(market):,} meses | {market["observation_date"].min():%m/%Y}–{market["observation_date"].max():%m/%Y} | Série agregada de demanda de veículos leves. |
+| Catálogo EPA `vehicles.csv` | {n:,} configurações | {meta["ano_inicial"]}–{meta["ano_final"]} | Produto, combustível, eficiência, emissões e tecnologia. |
+| Preços de energia | {len(energy):,} meses no painel consolidado | {energy["data"].min():%m/%Y}–{energy["data"].max():%m/%Y} | Preço nacional de gasolina/diesel e preço urbano médio de eletricidade. |
 
 ## Por que o painel tinha 2025–2027
 
-O intervalo de 2025–2027 foi apenas o **filtro inicial de leitura** para evitar dezenas de marcas históricas e mais de cinquenta mil configurações em uma mesma visualização. Ele não era uma limitação do dataset. O catálogo completo contém **{n:,} configurações** entre **{meta['ano_inicial']} e {meta['ano_final']}**, e a versão integrada passa a abrir o universo completo por padrão, mantendo filtros como recurso de exploração.
+O intervalo de 2025–2027 foi apenas o **filtro inicial de leitura** para evitar dezenas de marcas históricas e mais de cinquenta mil configurações em uma mesma visualização. Ele não era uma limitação do dataset. O catálogo completo contém **{n:,} configurações** entre **{meta["ano_inicial"]} e {meta["ano_final"]}**, e a versão integrada passa a abrir o universo completo por padrão, mantendo filtros como recurso de exploração.
 
 ## Cobertura de campos EPA
 

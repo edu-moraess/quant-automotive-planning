@@ -1,35 +1,46 @@
-"""Atualiza o snapshot de preços de energia a partir de séries públicas do FRED."""
+"""Atualiza o snapshot de preços de energia com validação e proveniência."""
+
 from __future__ import annotations
 
+import json
+import sys
 from pathlib import Path
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-SERIES = {
-    "GASREGW": "gasolina_usd_gal",
-    "GASDESW": "diesel_usd_gal",
-    "APU000072610": "eletricidade_usd_kwh",
-}
+sys.path.insert(0, str(ROOT / "src"))
 
-
-def load_series(series_id: str, output_name: str) -> pd.DataFrame:
-    url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
-    data = pd.read_csv(url, parse_dates=["observation_date"])
-    data = data.rename(columns={"observation_date": "data", series_id: output_name})
-    data[output_name] = pd.to_numeric(data[output_name], errors="coerce")
-    return data.set_index("data").resample("MS").mean().reset_index()
+from config import ENERGY_SNAPSHOT, SOURCES  # noqa: E402
+from ingestion import fetch_monthly_fred_energy_series  # noqa: E402
 
 
 def main() -> None:
-    series_frames = [load_series(series_id, output_name) for series_id, output_name in SERIES.items()]
-    monthly = series_frames[0]
-    for frame in series_frames[1:]:
-        monthly = monthly.merge(frame, on="data", how="outer")
-    monthly = monthly.sort_values("data").reset_index(drop=True)
-    output = ROOT / "data" / "energy_price_snapshot.csv"
-    monthly.to_csv(output, index=False, date_format="%Y-%m-%d")
-    print(f"Snapshot atualizado: {output} | {len(monthly):,} meses | última data: {monthly['data'].max():%Y-%m-%d}")
+    frames: list[pd.DataFrame] = []
+    provenance: dict[str, object] = {"updated_at_utc": pd.Timestamp.utcnow().isoformat(), "series": {}}
+    for series_id, output_name in SOURCES.fred_energy_series.items():
+        result = fetch_monthly_fred_energy_series(series_id, output_name)
+        frames.append(result.frame)
+        provenance["series"][series_id] = {
+            "output_column": output_name,
+            "status": result.source_status,
+            "source_url": result.source_url,
+            "retrieved_at_utc": result.retrieved_at_utc,
+            "rows": int(len(result.frame)),
+            "start": result.frame["data"].min().strftime("%Y-%m-%d"),
+            "end": result.frame["data"].max().strftime("%Y-%m-%d"),
+        }
+    monthly = frames[0]
+    for frame in frames[1:]:
+        monthly = monthly.merge(frame, on="data", how="outer", validate="one_to_one")
+    monthly = monthly.sort_values("data").drop_duplicates("data").reset_index(drop=True)
+    ENERGY_SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
+    monthly.to_csv(ENERGY_SNAPSHOT, index=False, date_format="%Y-%m-%d")
+    provenance_path = ENERGY_SNAPSHOT.with_name("energy_price_provenance.json")
+    provenance_path.write_text(json.dumps(provenance, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(
+        f"Snapshot atualizado: {ENERGY_SNAPSHOT} | {len(monthly):,} meses | última data: {monthly['data'].max():%Y-%m-%d}"
+    )
 
 
 if __name__ == "__main__":

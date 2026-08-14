@@ -1,4 +1,5 @@
 """Treina e exporta os modelos avançados da plataforma a partir de dados versionados."""
+
 from __future__ import annotations
 
 import sys
@@ -9,7 +10,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from advanced_models import fit_econometric_energy_model, fit_efficiency_neural_model, save_advanced_results  # noqa: E402
+from advanced_models import (  # noqa: E402
+    fit_econometric_energy_model,
+    fit_efficiency_neural_model,
+    save_advanced_results,
+)
 from analysis import prepare_data  # noqa: E402
 from energy_intelligence import load_energy_prices  # noqa: E402
 from vehicle_intelligence import load_vehicle_data  # noqa: E402

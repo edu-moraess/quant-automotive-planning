@@ -3,6 +3,7 @@
 Os resultados são treinados em snapshots públicos versionados. A separação temporal
 impede que configurações recentes ou meses futuros apareçam no treinamento.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,10 +15,14 @@ import pandas as pd
 import statsmodels.api as sm
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
+from sklearn.inspection import permutation_importance
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.stattools import durbin_watson, jarque_bera
 
 MARKET_TARGET = "vendas_saar_milhoes"
 ENERGY_FEATURES = ["gasolina_usd_gal", "diesel_usd_gal", "eletricidade_usd_kwh"]
@@ -52,7 +57,9 @@ def prepare_econometric_frame(market_data: pd.DataFrame, energy_prices: pd.DataF
     return frame
 
 
-def fit_econometric_energy_model(market_data: pd.DataFrame, energy_prices: pd.DataFrame, holdout_months: int = 24) -> dict[str, Any]:
+def fit_econometric_energy_model(
+    market_data: pd.DataFrame, energy_prices: pd.DataFrame, holdout_months: int = 24
+) -> dict[str, Any]:
     """Estima OLS padronizado e avalia os últimos meses sem reordenar o tempo."""
     frame = prepare_econometric_frame(market_data, energy_prices)
     if len(frame) <= holdout_months + 36:
@@ -79,7 +86,11 @@ def fit_econometric_energy_model(market_data: pd.DataFrame, energy_prices: pd.Da
         }
     )
     coefficients["abs_coeficiente"] = coefficients["coeficiente_padronizado"].abs()
-    coefficients = coefficients.sort_values("abs_coeficiente", ascending=False).drop(columns="abs_coeficiente").reset_index(drop=True)
+    coefficients = (
+        coefficients.sort_values("abs_coeficiente", ascending=False)
+        .drop(columns="abs_coeficiente")
+        .reset_index(drop=True)
+    )
     validation = test[["data", MARKET_TARGET, *ENERGY_FEATURES]].copy()
     validation["previsto_ols"] = predictions.to_numpy()
     metrics = _metrics(test[MARKET_TARGET], predictions)
@@ -93,14 +104,48 @@ def fit_econometric_energy_model(market_data: pd.DataFrame, energy_prices: pd.Da
             "variaveis": int(len(feature_columns)),
         }
     )
-    return {"metrics": metrics, "coefficients": coefficients, "validation": validation, "frame": frame}
+    diagnostics = _econometric_diagnostics(fitted, x_train)
+    return {
+        "metrics": metrics,
+        "coefficients": coefficients,
+        "validation": validation,
+        "frame": frame,
+        "diagnostics": diagnostics,
+    }
+
+
+def _econometric_diagnostics(fitted: Any, x_train: pd.DataFrame) -> dict[str, Any]:
+    residuals = np.asarray(fitted.resid, dtype=float)
+    jb = jarque_bera(residuals)
+    bp = het_breuschpagan(residuals, x_train)
+    vif_rows: list[dict[str, float | str]] = []
+    values = x_train.to_numpy(dtype=float)
+    for index, column in enumerate(x_train.columns):
+        if column == "const":
+            continue
+        try:
+            vif = float(variance_inflation_factor(values, index))
+        except Exception:
+            vif = float("inf")
+        vif_rows.append({"variavel": column, "vif": vif})
+    return {
+        "durbin_watson": float(durbin_watson(residuals)),
+        "jarque_bera": {"statistic": float(jb[0]), "pvalue": float(jb[1])},
+        "breusch_pagan": {"statistic": float(bp[0]), "pvalue": float(bp[1])},
+        "vif": pd.DataFrame(vif_rows).sort_values("vif", ascending=False).reset_index(drop=True),
+    }
 
 
 def _neural_preprocessor() -> ColumnTransformer:
     numeric_pipeline = Pipeline([("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler())])
-    categorical_pipeline = Pipeline([("imputer", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore"))])
+    categorical_pipeline = Pipeline(
+        [("imputer", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore"))]
+    )
     return ColumnTransformer(
-        [("numeric", numeric_pipeline, NEURAL_NUMERIC_FEATURES), ("categorical", categorical_pipeline, NEURAL_CATEGORICAL_FEATURES)],
+        [
+            ("numeric", numeric_pipeline, NEURAL_NUMERIC_FEATURES),
+            ("categorical", categorical_pipeline, NEURAL_CATEGORICAL_FEATURES),
+        ],
         remainder="drop",
     )
 
@@ -108,7 +153,7 @@ def _neural_preprocessor() -> ColumnTransformer:
 def fit_efficiency_neural_model(vehicle_data: pd.DataFrame, cutoff_year: int = 2024) -> dict[str, Any]:
     """Treina MLP de eficiência usando separação de ano-modelo, sem vazamento do alvo."""
     features = [*NEURAL_NUMERIC_FEATURES, *NEURAL_CATEGORICAL_FEATURES]
-    required = list(dict.fromkeys(["id", "make", "model", "year", "comb08", *features]))
+    required = list(dict.fromkeys(["id", "make", "model", "year", "comb08", "powertrain", *features]))
     frame = vehicle_data[required].copy()
     frame["comb08"] = pd.to_numeric(frame["comb08"], errors="coerce")
     frame = frame.dropna(subset=["year", "comb08"])
@@ -139,9 +184,35 @@ def fit_efficiency_neural_model(vehicle_data: pd.DataFrame, cutoff_year: int = 2
     )
     estimator.fit(train[features], train["comb08"])
     predicted = estimator.predict(test[features])
-    validation = test[["id", "make", "model", "year", "comb08"]].copy()
+    validation = test[["id", "make", "model", "year", "powertrain", "VClass", "fuelType1", "comb08"]].copy()
     validation["previsto_mlp"] = predicted
     validation["erro_abs"] = (validation["comb08"] - validation["previsto_mlp"]).abs()
+    permutation = permutation_importance(
+        estimator,
+        test[features],
+        test["comb08"],
+        scoring="neg_mean_absolute_error",
+        n_repeats=8,
+        random_state=42,
+        n_jobs=1,
+    )
+    importance = (
+        pd.DataFrame(
+            {
+                "variavel": features,
+                "incremento_mae_permutacao": permutation.importances_mean,
+                "desvio_mae_permutacao": permutation.importances_std,
+            }
+        )
+        .sort_values("incremento_mae_permutacao", ascending=False)
+        .reset_index(drop=True)
+    )
+    error_by_powertrain = (
+        validation.groupby("powertrain", as_index=False)
+        .agg(configuracoes=("id", "count"), mae=("erro_abs", "mean"), mediana_erro=("erro_abs", "median"))
+        .sort_values("mae", ascending=False)
+        .reset_index(drop=True)
+    )
     metrics = _metrics(test["comb08"], predicted)
     metrics.update(
         {
@@ -154,15 +225,36 @@ def fit_efficiency_neural_model(vehicle_data: pd.DataFrame, cutoff_year: int = 2
             "iteracoes": int(estimator.named_steps["model"].n_iter_),
         }
     )
-    return {"metrics": metrics, "validation": validation, "estimator": estimator, "training_rows": len(train), "test_rows": len(test)}
+    return {
+        "metrics": metrics,
+        "validation": validation,
+        "importance": importance,
+        "error_by_powertrain": error_by_powertrain,
+        "estimator": estimator,
+        "training_rows": len(train),
+        "test_rows": len(test),
+    }
 
 
 def save_advanced_results(output_dir: str | Path, econometric: dict[str, Any], neural: dict[str, Any]) -> None:
     """Persiste métricas, coeficientes e previsões para leitura rápida na interface."""
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
-    summary = {"econometria_energia": econometric["metrics"], "rede_neural_eficiencia": neural["metrics"], "amostras": {"econometria_total": int(len(econometric["frame"])), "neural_treino": int(neural["training_rows"]), "neural_teste": int(neural["test_rows"])}}
-    (destination / "advanced_model_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    summary = {
+        "econometria_energia": econometric["metrics"],
+        "rede_neural_eficiencia": neural["metrics"],
+        "amostras": {
+            "econometria_total": int(len(econometric["frame"])),
+            "neural_treino": int(neural["training_rows"]),
+            "neural_teste": int(neural["test_rows"]),
+        },
+    }
+    (destination / "advanced_model_summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     econometric["coefficients"].to_csv(destination / "econometric_coefficients.csv", index=False)
     econometric["validation"].to_csv(destination / "econometric_validation.csv", index=False)
+    econometric["diagnostics"]["vif"].to_csv(destination / "econometric_vif.csv", index=False)
     neural["validation"].to_csv(destination / "neural_efficiency_validation.csv", index=False)
+    neural["importance"].to_csv(destination / "neural_permutation_importance.csv", index=False)
+    neural["error_by_powertrain"].to_csv(destination / "neural_error_by_powertrain.csv", index=False)

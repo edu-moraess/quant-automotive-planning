@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -25,6 +25,11 @@ def test_full_pipeline_runs_from_versioned_snapshot():
     )
     assert result["source_label"] == "Snapshot local versionado"
     assert len(result["forecast"]) == 6
-    assert result["backtest"]["winner"] in {"Referência sazonal", "Holt-Winters", "Regressão com defasagens"}
-    assert set(result["production"]["scenarios"]["Cenário"]) == {"Conservador", "Base", "Otimista"}
+    assert result["backtest"]["winner"] in {
+        "Referência sazonal",
+        "Holt-Winters",
+        "Regressão com defasagens",
+        "AutoReg sazonal",
+    }
+    assert set(result["production"]["scenarios"]["Cenário"]) == {"Downside", "Base", "Upside", "Stress"}
     assert (result["production"]["plan"]["producao_recomendada"] <= 110_000).all()

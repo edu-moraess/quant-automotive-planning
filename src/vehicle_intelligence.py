@@ -5,10 +5,11 @@ Unidos. Ela suporta comparações técnicas de produto por marca, modelo, segmen
 propulsão, eficiência, emissões, autonomia e custo anual de energia. Não é uma
 base de vendas por marca.
 """
+
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -33,7 +34,19 @@ NUMERIC_COLUMNS = [
     "feScore",
     "ghgScore",
 ]
-TEXT_COLUMNS = ["make", "model", "baseModel", "VClass", "fuelType1", "fuelType2", "trany", "drive", "atvType", "mfrCode"]
+TEXT_COLUMNS = [
+    "make",
+    "model",
+    "baseModel",
+    "VClass",
+    "fuelType1",
+    "fuelType2",
+    "trany",
+    "drive",
+    "atvType",
+    "mfrCode",
+]
+EPA_REQUIRED_COLUMNS = {"id", "year", "make", "model", "VClass", "fuelType1", "comb08", "co2TailpipeGpm", "fuelCost08"}
 
 
 def _text_series(frame: pd.DataFrame, column: str) -> pd.Series:
@@ -49,7 +62,9 @@ def classify_powertrain(frame: pd.DataFrame) -> pd.Series:
     atv = _text_series(frame, "atvType").str.lower()
     range_miles = pd.to_numeric(frame.get("range", 0), errors="coerce").fillna(0)
 
-    plug_in = atv.str.contains("plug-in|phev", regex=True) | fuel.str.contains("electricity", regex=False) & fuel.str.contains("gasoline", regex=False)
+    plug_in = atv.str.contains("plug-in|phev", regex=True) | fuel.str.contains(
+        "electricity", regex=False
+    ) & fuel.str.contains("gasoline", regex=False)
     battery_electric = (
         fuel.str.contains("electricity", regex=False)
         & ~fuel.str.contains("gasoline", regex=False)
@@ -66,7 +81,15 @@ def classify_powertrain(frame: pd.DataFrame) -> pd.Series:
     return pd.Series(
         np.select(
             [battery_electric, plug_in, hybrid, hydrogen, diesel, natural_gas, ethanol],
-            ["Elétrico a bateria", "Híbrido plug-in", "Híbrido", "Célula a combustível", "Diesel", "Gás natural", "Flex / Etanol"],
+            [
+                "Elétrico a bateria",
+                "Híbrido plug-in",
+                "Híbrido",
+                "Célula a combustível",
+                "Diesel",
+                "Gás natural",
+                "Flex / Etanol",
+            ],
             default="Combustão",
         ),
         index=frame.index,
@@ -75,8 +98,15 @@ def classify_powertrain(frame: pd.DataFrame) -> pd.Series:
 
 
 def load_vehicle_data(source: str | Path) -> pd.DataFrame:
-    """Lê e prepara a base oficial de veículos da EPA."""
+    """Lê, valida e prepara a base oficial de veículos da EPA."""
     raw = pd.read_csv(source, low_memory=False)
+    missing_columns = sorted(EPA_REQUIRED_COLUMNS.difference(raw.columns))
+    if missing_columns:
+        raise ValueError(f"EPA: schema inválido; faltam colunas {missing_columns}.")
+    if raw.empty:
+        raise ValueError("EPA: snapshot vazio.")
+    if raw["id"].duplicated().any():
+        raise ValueError("EPA: IDs duplicados detectados; o snapshot não pode ser normalizado silenciosamente.")
     for column in NUMERIC_COLUMNS:
         if column in raw.columns:
             raw[column] = pd.to_numeric(raw[column], errors="coerce")
@@ -87,6 +117,8 @@ def load_vehicle_data(source: str | Path) -> pd.DataFrame:
     data = raw.copy()
     data = data[data["year"].between(1984, 2030, inclusive="both")].copy()
     data = data[data["make"].ne("") & data["model"].ne("")].copy()
+    if data.empty:
+        raise ValueError("EPA: nenhuma configuração válida após normalização de ano, marca e modelo.")
     data["powertrain"] = classify_powertrain(data)
     data["modelo_chave"] = data["make"] + " · " + data["model"]
     data["eficiencia_valida"] = data["comb08"].where(data["comb08"] > 0)
@@ -119,7 +151,14 @@ def filter_vehicles(
 def portfolio_kpis(data: pd.DataFrame) -> dict[str, float | int]:
     """Consolida indicadores para o universo filtrado de configurações."""
     if data.empty:
-        return {"configuracoes": 0, "marcas": 0, "modelos": 0, "mpg_medio": float("nan"), "co2_medio": float("nan"), "eletrificados_pct": float("nan")}
+        return {
+            "configuracoes": 0,
+            "marcas": 0,
+            "modelos": 0,
+            "mpg_medio": float("nan"),
+            "co2_medio": float("nan"),
+            "eletrificados_pct": float("nan"),
+        }
     return {
         "configuracoes": int(len(data)),
         "marcas": int(data["make"].nunique()),
@@ -177,33 +216,32 @@ def brand_registry(data: pd.DataFrame, recent_window_years: int = 3) -> pd.DataF
             presenca_no_snapshot=lambda frame: np.where(
                 frame["ano_final"] >= recent_floor,
                 f"Registro EPA em {recent_floor}–{latest_year}",
-                f"Somente histórico até {{ano_final}}",
+                "Somente histórico até {ano_final}",
             )
         )
     )
     registry["presenca_no_snapshot"] = registry.apply(
         lambda row: row["presenca_no_snapshot"].format(ano_final=int(row["ano_final"])), axis=1
     )
-    return registry.sort_values(["ano_final", "configuracoes", "make"], ascending=[False, False, True]).reset_index(drop=True)
+    return registry.sort_values(["ano_final", "configuracoes", "make"], ascending=[False, False, True]).reset_index(
+        drop=True
+    )
 
 
 def model_summary(data: pd.DataFrame, min_records: int = 1) -> pd.DataFrame:
     """Consolida o portfólio por marca e modelo sem misturar configurações."""
     if data.empty:
         return pd.DataFrame()
-    summary = (
-        data.groupby(["make", "model", "VClass", "powertrain"], as_index=False)
-        .agg(
-            configuracoes=("id", "count"),
-            ano_inicial=("year", "min"),
-            ano_final=("year", "max"),
-            mpg_medio=("eficiencia_valida", "mean"),
-            co2_medio_g_milha=("co2_valido", "mean"),
-            custo_anual_medio_usd=("custo_anual_valido", "mean"),
-            autonomia_max_milhas=("autonomia_valida", "max"),
-            cilindros_medios=("cylinders", "mean"),
-            motor_medio_litros=("displ", "mean"),
-        )
+    summary = data.groupby(["make", "model", "VClass", "powertrain"], as_index=False).agg(
+        configuracoes=("id", "count"),
+        ano_inicial=("year", "min"),
+        ano_final=("year", "max"),
+        mpg_medio=("eficiencia_valida", "mean"),
+        co2_medio_g_milha=("co2_valido", "mean"),
+        custo_anual_medio_usd=("custo_anual_valido", "mean"),
+        autonomia_max_milhas=("autonomia_valida", "max"),
+        cilindros_medios=("cylinders", "mean"),
+        motor_medio_litros=("displ", "mean"),
     )
     summary = summary[summary["configuracoes"] >= min_records]
     return summary.sort_values(["mpg_medio", "configuracoes"], ascending=[False, False]).reset_index(drop=True)

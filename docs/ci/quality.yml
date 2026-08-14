@@ -1,4 +1,4 @@
-name: quality
+name: Quality
 
 on:
   push:
@@ -8,17 +8,29 @@ on:
 
 jobs:
   test:
+    name: Static checks and tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+
       - name: Compile Python files
-        run: python -m compileall -q app.py src
+        run: python -m compileall -q app.py src scripts tests
+
+      - name: Check lint
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format --check .
+
       - name: Run tests
         run: pytest -q
