@@ -1,0 +1,58 @@
+{
+  "modelo": "OLS Newey-West (v2)",
+  "descricao": "OLS com erros-padrão HAC (Newey-West) e regressores macroeconômicos do FRED.",
+  "n_folds": 3,
+  "fold_size_meses": 6,
+  "n_obs_treino_final": 589,
+  "metricas": {
+    "mape_medio_pct": 3.0395,
+    "mape_desvio_pp": 1.0012,
+    "mae_medio": 0.5052,
+    "rmse_medio": 0.6898,
+    "durbin_watson_medio": 1.4208,
+    "durbin_watson_ultima_dobra": 0.808,
+    "coverage_p10_p90": 0.8333,
+    "pinball_loss_medio": 0.178
+  },
+  "metas_aceite": {
+    "durbin_watson_min": 1.6,
+    "mape_max_pct": 3.0,
+    "coverage_p10_p90_min": 0.75
+  },
+  "resultado_aceite": {
+    "durbin_watson": false,
+    "mape": false,
+    "coverage": true
+  },
+  "todos_criterios_atingidos": false,
+  "versao_anterior": {},
+  "dobras": [
+    {
+      "fold": 1,
+      "mape": 4.455202230769878,
+      "mae": 0.7667596655635123,
+      "rmse": 1.0945025826629855,
+      "dw": 1.8276088105726664,
+      "pinball": 0.2841480929086211,
+      "coverage": 0.6666666666666666
+    },
+    {
+      "fold": 2,
+      "mape": 2.3501658438957036,
+      "mae": 0.36503991100007366,
+      "rmse": 0.5472398471983548,
+      "dw": 1.6267880440322824,
+      "pinball": 0.1325613704771456,
+      "coverage": 0.8333333333333334
+    },
+    {
+      "fold": 3,
+      "mape": 2.3131742730608886,
+      "mae": 0.38374983688638437,
+      "rmse": 0.42755890666397167,
+      "dw": 0.8079554773879962,
+      "pinball": 0.11740861521183148,
+      "coverage": 1.0
+    }
+  ]
+}

@@ -23,12 +23,15 @@ class FeatureSourceConfig(BaseModel):
     fred_series: dict[str, str] = Field(
         default_factory=lambda: {
             "TOTALSA": "vendas_saar_milhoes",
+            "FEDFUNDS": "fed_funds_pct",
+            "G18": "taxa_financiamento_auto_pct",
             "UNRATE": "desemprego_pct",
             "CPIAUCSL": "cpi",
-            "FEDFUNDS": "fed_funds_pct",
-            "MORTGAGE30US": "mortgage_30y_pct",
+            "GASREG": "preco_gasolina_regular_fred",
             "UMCSENT": "confianca_consumidor",
+            "PAYEMS": "empregados_total_milhares",
             "INDPRO": "producao_industrial",
+            "MORTGAGE30US": "mortgage_30y_pct",
             "RSAFS": "vendas_varejo",
         }
     )

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -243,3 +244,114 @@ def test_feature_builder_delivers_total_sa_with_local_fallback(tmp_path):
     assert not result.market_features.empty
     assert (settings.feature_store_dir / "manifest.json").exists()
     assert any(settings.feature_store_dir.glob("source=feature_builder/month=*/data.parquet"))
+
+
+# ---------------------------------------------------------------------------
+# Testes do módulo api_health
+# ---------------------------------------------------------------------------
+
+
+def _mock_transport_status(status_code: int, body: dict | None = None) -> httpx.MockTransport:
+    """Cria um transporte mock que retorna um status HTTP fixo."""
+    payload = body or {}
+    return httpx.MockTransport(lambda _: httpx.Response(status_code, json=payload))
+
+
+def test_health_report_serialization_roundtrip(tmp_path):
+    """HealthReport.save/load preserva todos os campos sem perda."""
+    from data.api_health import STATUS_OK, HealthReport, SourceHealth
+
+    report = HealthReport()
+    report.sources["fred"] = SourceHealth(source="fred", status=STATUS_OK, latency_ms=42.5, message="HTTP 200")
+    report.sources["nhtsa"] = SourceHealth(source="nhtsa", status=STATUS_OK, latency_ms=88.0, message="HTTP 200")
+
+    path = tmp_path / "api_health.json"
+    report.save(path)
+    assert path.exists()
+
+    loaded = HealthReport.load(path)
+    assert loaded is not None
+    assert loaded.sources["fred"].status == STATUS_OK
+    assert loaded.sources["fred"].latency_ms == 42.5
+    assert loaded.sources["nhtsa"].status == STATUS_OK
+
+
+def test_health_report_load_returns_none_for_missing_file(tmp_path):
+    """HealthReport.load retorna None quando o arquivo não existe."""
+    from data.api_health import HealthReport
+
+    result = HealthReport.load(tmp_path / "nonexistent.json")
+    assert result is None
+
+
+def test_health_report_load_returns_none_for_corrupt_file(tmp_path):
+    """HealthReport.load retorna None quando o JSON está corrompido."""
+    from data.api_health import HealthReport
+
+    path = tmp_path / "bad.json"
+    path.write_text("{ not valid json }", encoding="utf-8")
+    result = HealthReport.load(path)
+    assert result is None
+
+
+def test_check_fred_returns_no_key_when_key_absent(monkeypatch):
+    """check_fred retorna STATUS_NO_KEY quando a chave não está configurada."""
+    from data.api_health import STATUS_NO_KEY, check_fred
+
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.delenv("QUANT_FRED_API_KEY", raising=False)
+    result = check_fred(api_key=None)
+    assert result.status == STATUS_NO_KEY
+
+
+def test_check_eia_returns_no_key_when_key_absent(monkeypatch):
+    """check_eia retorna STATUS_NO_KEY quando a chave não está configurada."""
+    from data.api_health import STATUS_NO_KEY, check_eia
+
+    monkeypatch.delenv("EIA_API_KEY", raising=False)
+    monkeypatch.delenv("QUANT_EIA_API_KEY", raising=False)
+    result = check_eia(api_key=None)
+    assert result.status == STATUS_NO_KEY
+
+
+def test_check_news_returns_no_key_when_key_absent(monkeypatch):
+    """check_news retorna STATUS_NO_KEY quando a chave não está configurada."""
+    from data.api_health import STATUS_NO_KEY, check_news
+
+    monkeypatch.delenv("NEWS_API_KEY", raising=False)
+    monkeypatch.delenv("QUANT_NEWS_API_KEY", raising=False)
+    result = check_news(api_key=None)
+    assert result.status == STATUS_NO_KEY
+
+
+def test_health_report_all_ok_false_when_any_source_fails(tmp_path):
+    """HealthReport.all_ok() retorna False quando ao menos uma fonte falhou."""
+    from data.api_health import STATUS_FAIL, STATUS_OK, HealthReport, SourceHealth
+
+    report = HealthReport()
+    report.sources["fred"] = SourceHealth(source="fred", status=STATUS_OK)
+    report.sources["eia"] = SourceHealth(source="eia", status=STATUS_FAIL, message="HTTP 403")
+    assert not report.all_ok()
+
+
+def test_health_report_all_ok_true_when_all_sources_ok(tmp_path):
+    """HealthReport.all_ok() retorna True quando todas as fontes estão ok."""
+    from data.api_health import STATUS_OK, HealthReport, SourceHealth
+
+    report = HealthReport()
+    report.sources["fred"] = SourceHealth(source="fred", status=STATUS_OK)
+    report.sources["nhtsa"] = SourceHealth(source="nhtsa", status=STATUS_OK)
+    assert report.all_ok()
+
+
+def test_health_report_to_dict_does_not_expose_api_keys(tmp_path):
+    """HealthReport.to_dict() não inclui chaves de API nem valores sensíveis."""
+    from data.api_health import STATUS_OK, HealthReport, SourceHealth
+
+    report = HealthReport()
+    report.sources["fred"] = SourceHealth(source="fred", status=STATUS_OK, message="HTTP 200 em 45 ms")
+    payload = report.to_dict()
+    payload_str = json.dumps(payload)
+    # Verifica que nenhum campo típico de credencial está presente.
+    for sensitive in ("api_key", "apiKey", "token", "secret", "password", "Authorization"):
+        assert sensitive.lower() not in payload_str.lower()

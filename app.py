@@ -19,6 +19,7 @@ import analysis as analysis_module  # noqa: E402
 import energy_intelligence as energy_module  # noqa: E402
 import vehicle_intelligence as vehicle_module  # noqa: E402
 from config import DATA_DIR, ENERGY_SNAPSHOT, EPA_SNAPSHOT, MARKET_SNAPSHOT, MODEL_ARTIFACTS_DIR  # noqa: E402
+from data.api_health import HealthReport  # noqa: E402
 from data.contracts import SourceName  # noqa: E402
 from data.feature_store import FeatureStore  # noqa: E402
 from presentation import fmt_month_display, format_temporal_display  # noqa: E402
@@ -85,6 +86,26 @@ def load_model_artifacts(artifact_mtime: float) -> dict[str, pd.DataFrame | dict
         "importance": pd.read_csv(MODEL_ARTIFACTS_DIR / "neural_permutation_importance.csv"),
         "error_by_powertrain": pd.read_csv(MODEL_ARTIFACTS_DIR / "neural_error_by_powertrain.csv"),
     }
+
+
+_API_HEALTH_PATH = DATA_DIR / "feature_store" / "api_health.json"
+_API_HEALTH_ICONS = {"ok": "🟢", "falha": "🔴", "chave_ausente": "🟡"}
+_API_HEALTH_LABELS = {"fred": "FRED", "eia": "EIA", "news": "News API", "nhtsa": "NHTSA"}
+
+
+@st.cache_data(show_spinner=False)
+def load_api_health_status(health_mtime: float) -> list[dict]:
+    """Lê o api_health.json local sem executar novas requisições."""
+    report = HealthReport.load(_API_HEALTH_PATH)
+    if report is None:
+        return []
+    rows = []
+    for name, health in report.sources.items():
+        icon = _API_HEALTH_ICONS.get(health.status, "⚪")
+        label = _API_HEALTH_LABELS.get(name, name.upper())
+        latency = f"{health.latency_ms:.0f} ms" if health.latency_ms is not None else "—"
+        rows.append({"icon": icon, "fonte": label, "status": health.status, "latência": latency})
+    return rows
 
 
 @st.cache_data(show_spinner=False)
@@ -725,9 +746,25 @@ with st.sidebar:
             st.success("Forecast e planejamento atualizados.")
 
     with st.expander("Camada de features gratuitas"):
+        # Status das APIs (api_health.json).
+        health_mtime = _API_HEALTH_PATH.stat().st_mtime if _API_HEALTH_PATH.exists() else 0.0
+        api_health_rows = load_api_health_status(health_mtime)
+        if api_health_rows:
+            for row in api_health_rows:
+                st.caption(f"{row['icon']} **{row['fonte']}** — {row['status']} · {row['latência']}")
+        else:
+            st.caption("Teste de API não executado. Execute `refresh_free_features.py` para verificar as fontes.")
+        st.markdown("---")
+        # Status do feature store (manifest.json).
         if feature_status.empty:
             st.caption("Aguardando a primeira atualização automatizada de FRED, EIA e News API.")
         else:
+            # Última atualização do feature store.
+            if feature_manifest.exists():
+                import datetime  # noqa: PLC0415
+
+                last_update = datetime.datetime.fromtimestamp(feature_manifest_mtime).strftime("%d/%m/%Y %H:%M")
+                st.caption(f"Última atualização: {last_update}")
             st.dataframe(feature_status, hide_index=True, use_container_width=True)
             st.caption("O painel apenas lê o manifesto local; consultas externas rodam fora da interface.")
 
@@ -1216,6 +1253,67 @@ with tab_market:
             ]
         )
         st.dataframe(diagnostics_display.style.format({"Valor": "{:.4f}"}), width="stretch", hide_index=True)
+
+    # Gráfico de coeficientes padronizados do modelo OLS Newey-West.
+    with st.expander("Drivers do forecast — OLS Newey-West"):
+        st.caption(
+            "Coeficientes padronizados do modelo OLS com erros-padrão HAC (Newey-West). "
+            "Barras maiores indicam maior contribuição relativa para o forecast; "
+            "as séries macroeconômicas entram quando o feature store é atualizado com as chaves de API."
+        )
+        try:
+            import sys as _sys  # noqa: PLC0415
+
+            _sys.path.insert(0, str(ROOT / "src"))
+            from forecast_model import build_regression_matrix, walk_forward_ols  # noqa: PLC0415
+
+            @st.cache_data(show_spinner=False)
+            def _load_ols_coefficients(snapshot_mtime: float) -> pd.DataFrame:
+                """Treina o modelo OLS NW e retorna coeficientes padronizados; cache por mtime do snapshot."""
+                matrix = build_regression_matrix()
+                results = walk_forward_ols(matrix)
+                return results["coeficientes_padronizados"]
+
+            _snapshot_mtime = MARKET_SNAPSHOT.stat().st_mtime if MARKET_SNAPSHOT.exists() else 0.0
+            coef_df = _load_ols_coefficients(_snapshot_mtime)
+            if not coef_df.empty:
+                fig_coef = go.Figure()
+                colors = [ORANGE if v >= 0 else RED for v in coef_df["coef_norm"]]
+                fig_coef.add_trace(
+                    go.Bar(
+                        x=coef_df["coef_norm"],
+                        y=coef_df["variavel"],
+                        orientation="h",
+                        marker_color=colors,
+                        customdata=coef_df[["coeficiente", "pvalue"]].values,
+                        hovertemplate="%{y}<br>Coef. norm.: %{x:.3f}<br>Coef. bruto: %{customdata[0]:.4f}<br>p-valor: %{customdata[1]:.4f}<extra></extra>",
+                    )
+                )
+                fig_coef.update_layout(
+                    title="Coeficientes padronizados — OLS Newey-West",
+                    xaxis_title="Magnitude relativa (normalizada pelo maior coeficiente)",
+                    yaxis_title="",
+                    height=max(280, 40 * len(coef_df) + 80),
+                )
+                fig_coef = style_chart(fig_coef, height=max(280, 40 * len(coef_df) + 80), legend=False)
+                st.plotly_chart(fig_coef, width="stretch", config=PLOT_CONFIG, key="ols_coef_chart")
+                # Tabela de coeficientes com p-valores.
+                coef_display = coef_df[["variavel", "coeficiente", "ic_lo95", "ic_hi95", "pvalue"]].copy()
+                coef_display.columns = ["Variável", "Coeficiente", "IC 95% inferior", "IC 95% superior", "p-valor"]
+                st.dataframe(
+                    coef_display.style.format(
+                        {
+                            "Coeficiente": "{:.4f}",
+                            "IC 95% inferior": "{:.4f}",
+                            "IC 95% superior": "{:.4f}",
+                            "p-valor": "{:.4f}",
+                        }
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
+        except Exception as _ols_err:
+            st.caption(f"Modelo OLS Newey-West indisponível: {_ols_err}")
 
 with tab_models:
     st.markdown("### Modelos integrados: energia, mercado e eficiência")
