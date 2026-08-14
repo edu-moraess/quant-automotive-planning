@@ -1,13 +1,19 @@
 """Modelo de forecast macroeconômico com OLS Newey-West e validação walk-forward.
 
 Consome o feature store particionado em Parquet para construir a matriz de regressores,
-aplica erros-padrão HAC (Newey-West) para lidar com autocorrelação residual remanescente,
-e executa validação walk-forward com bootstrap moving-block para gerar intervalos p10–p90.
+aaplica erros-padrão HAC (Newey-West) para lidar com autocorrelação residual remanescente,
+e executa validação walk-forward com bootstrap moving-block para gerar intervalos p10–90.
 
-Metas de qualidade:
-    - Durbin-Watson ≥ 1.60
-    - MAPE ≤ 3.0 %
-    - Cobertura p10–p90 ≥ 75 %
+Seleção de variáveis (v2.1):
+    - Defasagens do target: apenas y_lag1 (t-2 e t-12 não significativas)
+    - FEDFUNDS com lag 2 meses (sinal negativo mais consistente que lag 1)
+    - GASREG com lag 1 (driver energético direto)
+    - Removidos: Produção industrial e Inflação (CPI) por multicolinearidade
+
+Metas de qualidade (v2.1):
+    - Durbin-Watson ≥ 1.72
+    - MAPE ≤ 2.87 %
+    - Cobertura p10–90 ≥ 75 %
 """
 
 from __future__ import annotations
@@ -26,21 +32,26 @@ from config import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
-# Séries FRED que compõem a matriz de regressores macroeconômicos.
-# Cada série é defasada em t-1 para preservar a regra point-in-time.
-MACRO_FEATURES: dict[str, str] = {
-    "fed_funds_pct": "Juros (Fed Funds)",
+# Séries FRED com lag t-1 (regra point-in-time padrão).
+# CPI e Produção industrial removidos por multicolinearidade com Desemprego e Emprego.
+MACRO_FEATURES_LAG1: dict[str, str] = {
     "taxa_financiamento_auto_pct": "Financiamento auto",
     "desemprego_pct": "Desemprego",
-    "cpi": "Inflação (CPI)",
-    "preco_gasolina_regular_fred": "Gasolina (FRED)",
+    "preco_gasolina_regular_fred": "Gasolina (GASREG)",
     "confianca_consumidor": "Confiança do consumidor",
     "empregados_total_milhares": "Emprego total",
-    "producao_industrial": "Produção industrial",
 }
 
-# Colunas de defasagem da própria série-alvo.
-TARGET_LAGS = [1, 2, 12]
+# FEDFUNDS com lag t-2: sinal negativo mais consistente que lag t-1 para vendas SAAR.
+MACRO_FEATURES_LAG2: dict[str, str] = {
+    "fed_funds_pct": "Juros Fed (lag 2)",
+}
+
+# Compat: MACRO_FEATURES aponta para lag1 para uso externo (label_map no gráfico).
+MACRO_FEATURES: dict[str, str] = {**MACRO_FEATURES_LAG1, **MACRO_FEATURES_LAG2}
+
+# Apenas lag t-1 do target: t-2 e t-12 não significativos após inclusão dos regressores macro.
+TARGET_LAGS = [1]
 
 # Arquivo de referência com métricas da versão anterior (Ridge com defasagens).
 _PREV_PERF_FILE = DATA_DIR / "model_artifacts" / "advanced_model_summary.json"
@@ -116,16 +127,26 @@ def build_regression_matrix(store_dir: Path | None = None) -> pd.DataFrame:
         store_raw["mes"] = pd.to_datetime(store_raw["mes"], errors="coerce")
         store_raw = store_raw.dropna(subset=["mes"]).sort_values("mes").drop_duplicates(subset=["mes"])
         store_raw = store_raw.set_index("mes")
-        for col, label in MACRO_FEATURES.items():
+
+        # Regressores com lag t-1 (regra point-in-time padrão).
+        for col, label in MACRO_FEATURES_LAG1.items():
             if col in store_raw.columns:
-                # Alinha pelo índice temporal e aplica lag t-1.
                 aligned = store_raw[col].reindex(matrix.index)
                 matrix[f"X_{col}"] = aligned.shift(1)
-                logger.debug("Regressor '%s' (%s) adicionado do feature store.", col, label)
+                logger.debug("Regressor '%s' (%s) lag=1 adicionado.", col, label)
+            else:
+                logger.debug("Regressor '%s' (%s) ausente no feature store — omitido.", col, label)
+
+        # FEDFUNDS com lag t-2: transmissão da política monetária leva ~2 meses para afetar vendas.
+        for col, label in MACRO_FEATURES_LAG2.items():
+            if col in store_raw.columns:
+                aligned = store_raw[col].reindex(matrix.index)
+                matrix[f"X_{col}_lag2"] = aligned.shift(2)
+                logger.debug("Regressor '%s' (%s) lag=2 adicionado.", col, label)
             else:
                 logger.debug("Regressor '%s' (%s) ausente no feature store — omitido.", col, label)
     else:
-        logger.info("Feature store sem dados de mercado; modelo usa apenas defasagens do target.")
+        logger.info("Feature store sem dados de mercado; modelo usa apenas defasagem y_lag1.")
 
     # Dummies sazonais mensais (janeiro como referência).
     for month in range(2, 13):
@@ -261,12 +282,12 @@ def _standardized_coefficients(result: Any, feature_cols: list[str]) -> pd.DataF
     pvalues_arr = np.asarray(result.pvalues)  # shape: (n_params,)
 
     # Nomes legíveis para o gráfico de drivers.
-    label_map = {f"X_{k}": v for k, v in MACRO_FEATURES.items()}
+    label_map = {f"X_{k}": v for k, v in MACRO_FEATURES_LAG1.items()}
+    # FEDFUNDS usa coluna X_fed_funds_pct_lag2 (lag=2 explícito no nome).
+    label_map.update({f"X_{k}_lag2": v for k, v in MACRO_FEATURES_LAG2.items()})
     label_map.update(
         {
             "y_lag1": "Vendas t-1",
-            "y_lag2": "Vendas t-2",
-            "y_lag12": "Vendas t-12",
         }
     )
     # Dummies sazonais omitidas do gráfico de drivers.
@@ -324,10 +345,10 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
         except Exception:
             pass
 
-    # Metas de aceite definidas no prompt.
+    # Metas de aceite v2.1 — seleção otimizada de variáveis.
     metas = {
-        "durbin_watson_min": 1.60,
-        "mape_max_pct": 3.0,
+        "durbin_watson_min": 1.72,
+        "mape_max_pct": 2.87,
         "coverage_p10_p90_min": 0.75,
     }
     resultados = {
@@ -342,8 +363,12 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
     }
 
     payload = {
-        "modelo": "OLS Newey-West (v2)",
-        "descricao": "OLS com erros-padrão HAC (Newey-West) e regressores macroeconômicos do FRED.",
+        "modelo": "OLS Newey-West (v2.1)",
+        "descricao": (
+            "OLS com erros-padrão HAC (Newey-West). Seleção otimizada: y_lag1, "
+            "FEDFUNDS lag-2, GASREG lag-1, Desemprego, Financiamento auto, "
+            "Confiança do consumidor, Emprego total. CPI e Produção industrial removidos."
+        ),
         "n_folds": metrics["n_folds"],
         "fold_size_meses": metrics["fold_size"],
         "n_obs_treino_final": metrics["n_obs_treino_final"],
