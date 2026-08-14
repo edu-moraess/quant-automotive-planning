@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import datetime
 import json
 import sys
 from pathlib import Path
@@ -19,8 +21,8 @@ import analysis as analysis_module  # noqa: E402
 import energy_intelligence as energy_module  # noqa: E402
 import vehicle_intelligence as vehicle_module  # noqa: E402
 from config import DATA_DIR, ENERGY_SNAPSHOT, EPA_SNAPSHOT, MARKET_SNAPSHOT, MODEL_ARTIFACTS_DIR  # noqa: E402
-from data.api_health import HealthReport  # noqa: E402
-from data.contracts import SourceName  # noqa: E402
+from data import FeatureBuilder, FeatureSettings, SourceName, TimeWindow, load_feature_source_config  # noqa: E402
+from data.api_health import HealthReport, run_health_check  # noqa: E402
 from data.feature_store import FeatureStore  # noqa: E402
 from presentation import fmt_month_display, format_temporal_display  # noqa: E402
 from scenarios import energy_price_sensitivity  # noqa: E402
@@ -91,6 +93,65 @@ def load_model_artifacts(artifact_mtime: float) -> dict[str, pd.DataFrame | dict
 _API_HEALTH_PATH = DATA_DIR / "feature_store" / "api_health.json"
 _API_HEALTH_ICONS = {"ok": "🟢", "falha": "🔴", "chave_ausente": "🟡"}
 _API_HEALTH_LABELS = {"fred": "FRED", "eia": "EIA", "news": "News API", "nhtsa": "NHTSA"}
+_FEATURES_TOML = ROOT / "config" / "features.toml"
+
+
+def _build_feature_settings_from_secrets() -> FeatureSettings:
+    """Constrói FeatureSettings lendo as chaves de st.secrets quando disponível."""
+    try:
+        if hasattr(st, "secrets") and st.secrets:
+            return FeatureSettings.from_streamlit_secrets(dict(st.secrets))
+    except Exception:
+        pass
+    return FeatureSettings()
+
+
+def run_feature_refresh_from_secrets(
+    sources: set[SourceName] | None = None,
+    start: str = "2018-01-01",
+) -> dict:
+    """Executa o health check e a ingestão de features usando as chaves do Streamlit Cloud.
+
+    Deve ser chamada apenas a partir de um botão na interface — não no carregamento inicial.
+    Retorna um dict com o resumo da execução (sem expor credenciais).
+    """
+    settings = _build_feature_settings_from_secrets()
+    source_config = load_feature_source_config(_FEATURES_TOML)
+    selected = sources or {SourceName.FRED, SourceName.EIA, SourceName.NEWS, SourceName.NHTSA}
+
+    # Health check antes da ingestão.
+    health_report = run_health_check(
+        fred_key=settings.secret_value("fred"),
+        eia_key=settings.secret_value("eia"),
+        news_key=settings.secret_value("news"),
+        save_path=_API_HEALTH_PATH,
+    )
+
+    # Remove fontes indisponíveis (exceto FRED, que tem fallback local).
+    from data.api_health import STATUS_FAIL, STATUS_NO_KEY  # noqa: PLC0415
+
+    eligible = set(selected)
+    for name, health in health_report.sources.items():
+        try:
+            sn = SourceName(name)
+        except ValueError:
+            continue
+        if sn == SourceName.FRED:
+            continue  # FRED sempre elegível — usa snapshot local se falhar
+        if health.status in {STATUS_FAIL, STATUS_NO_KEY} and sn in eligible:
+            eligible.discard(sn)
+
+    # Executa a ingestão.
+    as_of = pd.Timestamp(datetime.datetime.now(datetime.UTC))
+    builder = FeatureBuilder(settings, source_config)
+    result = asyncio.run(builder.build(TimeWindow(start=pd.Timestamp(start), as_of=as_of), sources=eligible))
+    return {
+        "as_of": result.as_of.isoformat(),
+        "market_feature_rows": len(result.market_features),
+        "event_feature_rows": len(result.event_features),
+        "sources_run": [s.value for s in eligible],
+        "health": {name: h.status for name, h in health_report.sources.items()},
+    }
 
 
 @st.cache_data(show_spinner=False)
@@ -753,20 +814,42 @@ with st.sidebar:
             for row in api_health_rows:
                 st.caption(f"{row['icon']} **{row['fonte']}** — {row['status']} · {row['latência']}")
         else:
-            st.caption("Teste de API não executado. Execute `refresh_free_features.py` para verificar as fontes.")
+            st.caption("⚪ Status das APIs: não verificado ainda.")
+
+        # Última atualização do feature store.
+        if feature_manifest.exists():
+            last_update = datetime.datetime.fromtimestamp(feature_manifest_mtime).strftime("%d/%m/%Y %H:%M")
+            st.caption(f"⏱ Última atualização: {last_update}")
+
+        # Botão de atualização — usa as chaves configuradas no Streamlit Cloud.
+        if st.button(
+            "Atualizar features (FRED · EIA · News · NHTSA)",
+            key="refresh_features_btn",
+            help="Lê as chaves de API do Streamlit Cloud Secrets e atualiza o feature store local.",
+        ):
+            with st.spinner("Verificando APIs e atualizando feature store..."):
+                try:
+                    summary = run_feature_refresh_from_secrets()
+                    st.success(
+                        f"Feature store atualizado — "
+                        f"{summary['market_feature_rows']} linhas de mercado, "
+                        f"{summary['event_feature_rows']} de eventos."
+                    )
+                    # Invalida os caches de status para refletir a atualização.
+                    load_api_health_status.clear()
+                    load_feature_source_status.clear()
+                    load_nhtsa_risk_snapshot.clear()
+                    st.rerun()
+                except Exception as _refresh_err:
+                    st.error(f"Falha na atualização: {_refresh_err}")
+
         st.markdown("---")
         # Status do feature store (manifest.json).
         if feature_status.empty:
-            st.caption("Aguardando a primeira atualização automatizada de FRED, EIA e News API.")
+            st.caption("Aguardando a primeira atualização via botão acima.")
         else:
-            # Última atualização do feature store.
-            if feature_manifest.exists():
-                import datetime  # noqa: PLC0415
-
-                last_update = datetime.datetime.fromtimestamp(feature_manifest_mtime).strftime("%d/%m/%Y %H:%M")
-                st.caption(f"Última atualização: {last_update}")
             st.dataframe(feature_status, hide_index=True, use_container_width=True)
-            st.caption("O painel apenas lê o manifesto local; consultas externas rodam fora da interface.")
+            st.caption("O painel lê o manifesto local; o botão acima aciona as APIs externas.")
 
     st.markdown("---")
     st.markdown(f"[Mercado · FRED]({FRED_SERIES_URL})")
