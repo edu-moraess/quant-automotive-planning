@@ -7,7 +7,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 _FRED_PROBE_URL = "https://api.stlouisfed.org/fred/series/observations"
 _EIA_PROBE_URL = "https://api.eia.gov/v2/seriesid/PET.WRG0_EPM0_PTE_DPG.W"
 _NEWS_PROBE_URL = "https://newsapi.org/v2/everything"
+# NHTSA: endpoint de recalls exige make + model + modelYear; sem model retorna HTTP 400.
 _NHTSA_PROBE_URL = "https://api.nhtsa.gov/recalls/recallsByVehicle"
+_NHTSA_PROBE_PARAMS = {"modelYear": "2024", "make": "TOYOTA", "model": "RAV4"}
 
 # Valores possíveis para o campo "status" de cada fonte no relatório.
 STATUS_OK = "ok"
@@ -35,7 +37,7 @@ class SourceHealth:
     status: str  # STATUS_OK | STATUS_FAIL | STATUS_NO_KEY
     latency_ms: float | None = None
     message: str = ""
-    checked_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    checked_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass
@@ -43,7 +45,7 @@ class HealthReport:
     """Relatório consolidado de todas as fontes verificadas."""
 
     sources: dict[str, SourceHealth] = field(default_factory=dict)
-    generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    generated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def all_ok(self) -> bool:
         return all(s.status == STATUS_OK for s in self.sources.values())
@@ -104,15 +106,24 @@ def _read_key(env_var: str, streamlit_section: str | None = None) -> str | None:
     return os.environ.get(env_var) or os.environ.get(env_var.lower())
 
 
-def _probe(url: str, params: dict[str, Any], timeout: float = 10.0) -> tuple[bool, float, str]:
-    """Executa uma requisição GET leve e retorna (sucesso, latência_ms, mensagem)."""
+def _probe(
+    url: str,
+    params: dict[str, Any],
+    timeout: float = 12.0,
+    ok_codes: tuple[int, ...] = (200,),
+) -> tuple[bool, float, str]:
+    """Executa uma requisição GET leve e retorna (sucesso, latência_ms, mensagem).
+
+    `ok_codes` permite aceitar códigos adicionais como sucesso — por exemplo, HTTP 403
+    com corpo JSON de chave inválida indica que a API está acessível mas a chave é errada.
+    """
     start = time.monotonic()
     try:
         with httpx.Client(timeout=timeout) as client:
             response = client.get(url, params=params)
         latency = (time.monotonic() - start) * 1000
-        if response.status_code == 200:
-            return True, latency, f"HTTP 200 em {latency:.0f} ms"
+        if response.status_code in ok_codes:
+            return True, latency, f"HTTP {response.status_code} em {latency:.0f} ms"
         return False, latency, f"HTTP {response.status_code}"
     except httpx.TimeoutException:
         latency = (time.monotonic() - start) * 1000
@@ -141,11 +152,36 @@ def check_fred(api_key: str | None = None) -> SourceHealth:
 
 
 def check_eia(api_key: str | None = None) -> SourceHealth:
-    """Probe EIA: busca preço da gasolina regular com length=1."""
+    """Probe EIA: verifica conectividade e validade da chave no endpoint de gasolina.
+
+    HTTP 200 = chave válida e dados disponíveis.
+    HTTP 403 com JSON de erro = API acessível, mas chave inválida ou ausente.
+    Qualquer outro código ou timeout = falha de conectividade.
+    """
     key = api_key or _read_key("EIA_API_KEY")
     if not key:
         return SourceHealth(source="eia", status=STATUS_NO_KEY, message="EIA_API_KEY ausente.")
-    ok, latency, msg = _probe(_EIA_PROBE_URL, {"api_key": key, "length": "1"})
+    # Com chave real: espera HTTP 200. Com chave inválida: 403 mas API acessível.
+    ok, latency, msg = _probe(
+        _EIA_PROBE_URL,
+        {"api_key": key, "length": "1"},
+        ok_codes=(200,),
+    )
+    if not ok:
+        # Verifica se a API está acessível mesmo com chave inválida (403 = API ok, chave errada).
+        probe_ok, probe_latency, probe_msg = _probe(
+            _EIA_PROBE_URL,
+            {"api_key": "probe_test", "length": "1"},
+            ok_codes=(200, 403),
+        )
+        if probe_ok:
+            # API acessível: o problema é a chave, não a conectividade.
+            return SourceHealth(
+                source="eia",
+                status=STATUS_FAIL,
+                latency_ms=probe_latency,
+                message=f"API acessível mas chave inválida ou sem permissão. Detalhe: {msg}",
+            )
     return SourceHealth(source="eia", status=STATUS_OK if ok else STATUS_FAIL, latency_ms=latency, message=msg)
 
 
@@ -159,8 +195,12 @@ def check_news(api_key: str | None = None) -> SourceHealth:
 
 
 def check_nhtsa() -> SourceHealth:
-    """Probe NHTSA: endpoint público de recalls para Ford 2024 — sem chave necessária."""
-    ok, latency, msg = _probe(_NHTSA_PROBE_URL, {"modelYear": "2024", "make": "FORD"})
+    """Probe NHTSA: endpoint público de recalls para Toyota RAV4 2024 — sem chave.
+
+    O endpoint exige os 3 parâmetros: make, model e modelYear. Sem `model` retorna HTTP 400.
+    Timeout aumentado para 25 s pois a API NHTSA tem latência variável (observado até 18 s).
+    """
+    ok, latency, msg = _probe(_NHTSA_PROBE_URL, _NHTSA_PROBE_PARAMS, timeout=25.0)
     return SourceHealth(source="nhtsa", status=STATUS_OK if ok else STATUS_FAIL, latency_ms=latency, message=msg)
 
 
