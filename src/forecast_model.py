@@ -1,16 +1,20 @@
 """Modelo de forecast macroeconômico com OLS Newey-West e validação walk-forward.
 
 Consome o feature store particionado em Parquet para construir a matriz de regressores,
-aaplica erros-padrão HAC (Newey-West) para lidar com autocorrelação residual remanescente,
-e executa validação walk-forward com bootstrap moving-block para gerar intervalos p10–90.
+aplica erros-padrão HAC (Newey-West) para lidar com autocorrelação residual remanescente,
+e executa validação walk-forward para gerar intervalos p10–90. O estimador
+padrão é OLS com erros HAC; GLSAR fica disponível como contingência para
+resíduos persistentemente autocorrelacionados.
 
-Seleção de variáveis (v2.1):
-    - Defasagens do target: apenas y_lag1 (t-2 e t-12 não significativas)
-    - FEDFUNDS com lag 2 meses (sinal negativo mais consistente que lag 1)
-    - GASREG com lag 1 (driver energético direto)
-    - Removidos: Produção industrial e Inflação (CPI) por multicolinearidade
+Seleção de variáveis (v2.2):
+    - Defasagens do target: apenas y_lag1
+    - FEDFUNDS com lag 2 meses
+    - GASREG com lag 1
+    - CPI em variação percentual mensal com lags 1 e 3
+    - Produção industrial em variação percentual mensal com lag 2
+    - Os níveis CPI e produção industrial não entram diretamente na matriz
 
-Metas de qualidade (v2.1):
+Metas de qualidade (v2.2):
     - Durbin-Watson ≥ 1.72
     - MAPE ≤ 2.87 %
     - Cobertura p10–90 ≥ 75 %
@@ -33,7 +37,6 @@ from config import DATA_DIR
 logger = logging.getLogger(__name__)
 
 # Séries FRED com lag t-1 (regra point-in-time padrão).
-# CPI e Produção industrial removidos por multicolinearidade com Desemprego e Emprego.
 MACRO_FEATURES_LAG1: dict[str, str] = {
     "taxa_financiamento_auto_pct": "Financiamento auto",
     "desemprego_pct": "Desemprego",
@@ -47,8 +50,15 @@ MACRO_FEATURES_LAG2: dict[str, str] = {
     "fed_funds_pct": "Juros Fed (lag 2)",
 }
 
-# Compat: MACRO_FEATURES aponta para lag1 para uso externo (label_map no gráfico).
-MACRO_FEATURES: dict[str, str] = {**MACRO_FEATURES_LAG1, **MACRO_FEATURES_LAG2}
+# Diferenças já defasadas no feature builder; não aplicar shift adicional.
+DIFF_FEATURES: dict[str, str] = {
+    "CPI_diff_lag1": "Inflação Δ% (lag 1)",
+    "CPI_diff_lag3": "Inflação Δ% (lag 3)",
+    "PRODIND_diff_lag2": "Produção industrial Δ% (lag 2)",
+}
+
+# Compat: MACRO_FEATURES aponta para todos os drivers expostos no gráfico.
+MACRO_FEATURES: dict[str, str] = {**MACRO_FEATURES_LAG1, **MACRO_FEATURES_LAG2, **DIFF_FEATURES}
 
 # Apenas lag t-1 do target: t-2 e t-12 não significativos após inclusão dos regressores macro.
 TARGET_LAGS = [1]
@@ -145,6 +155,30 @@ def build_regression_matrix(store_dir: Path | None = None) -> pd.DataFrame:
                 logger.debug("Regressor '%s' (%s) lag=2 adicionado.", col, label)
             else:
                 logger.debug("Regressor '%s' (%s) ausente no feature store — omitido.", col, label)
+
+        # CPI e produção industrial entram como variações percentuais mensais.
+        # Lags materializados pelo builder são preferidos; quando não existem,
+        # deriva-se a variação dos níveis no próprio ponto de montagem da matriz.
+        diff_specs = {
+            "CPI_diff_lag1": ("cpi", 1),
+            "CPI_diff_lag3": ("cpi", 3),
+            "PRODIND_diff_lag2": ("producao_industrial", 2),
+        }
+        for feature_name, (source_name, lag) in diff_specs.items():
+            if feature_name in store_raw.columns:
+                matrix[f"X_{feature_name}"] = pd.to_numeric(store_raw[feature_name], errors="coerce").reindex(
+                    matrix.index
+                )
+                logger.debug("Regressor pré-calculado '%s' adicionado.", feature_name)
+                continue
+            if source_name not in store_raw.columns:
+                logger.debug("Fonte para '%s' ausente no feature store — omitida.", feature_name)
+                continue
+            levels = pd.to_numeric(store_raw[source_name], errors="coerce")
+            diff_series = levels.pct_change(fill_method=None).mul(100)
+            diff_series = diff_series.replace([np.inf, -np.inf], np.nan)
+            matrix[f"X_{feature_name}"] = diff_series.reindex(matrix.index).shift(lag)
+            logger.debug("Regressor derivado '%s' lag=%d adicionado.", feature_name, lag)
     else:
         logger.info("Feature store sem dados de mercado; modelo usa apenas defasagem y_lag1.")
 
@@ -161,12 +195,36 @@ def build_regression_matrix(store_dir: Path | None = None) -> pd.DataFrame:
 def _ols_newey_west(
     y: np.ndarray, X: np.ndarray, maxlags: int = 4
 ) -> sm.regression.linear_model.RegressionResultsWrapper:
-    """Ajusta OLS com erros-padrão HAC (Newey-West) para corrigir autocorrelação residual."""
+    """Ajusta OLS com erros-padrão HAC (Newey-West)."""
     X_const = sm.add_constant(X, has_constant="add")
     model = sm.OLS(y, X_const)
     # cov_type='HAC' com maxlags de Newey-West: floor(4 * (n/100)^(2/9)) é a regra padrão.
     result = model.fit(cov_type="HAC", cov_kwds={"maxlags": maxlags, "use_correction": True})
     return result
+
+
+def _glsar_cochrane_orcutt(
+    y: np.ndarray, X: np.ndarray, rho: int = 1
+) -> sm.regression.linear_model.RegressionResultsWrapper:
+    """Ajusta GLSAR iterativo para modelar AR(1) nos erros do OLS."""
+    X_const = sm.add_constant(X, has_constant="add")
+    model = sm.GLSAR(y, X_const, rho=rho)
+    return model.iterative_fit(maxiter=10)
+
+
+def _fit_estimator(
+    y: np.ndarray,
+    X: np.ndarray,
+    *,
+    estimator: str,
+    maxlags: int,
+) -> sm.regression.linear_model.RegressionResultsWrapper:
+    """Despacha o estimador mantendo o contrato comum de predição e coeficientes."""
+    if estimator == "newey_west":
+        return _ols_newey_west(y, X, maxlags=maxlags)
+    if estimator == "glsar":
+        return _glsar_cochrane_orcutt(y, X)
+    raise ValueError(f"Estimador desconhecido: {estimator!r}")
 
 
 def _pinball_loss(actual: np.ndarray, predicted: np.ndarray, residuals: np.ndarray) -> float:
@@ -184,8 +242,8 @@ def _coverage(actual: np.ndarray, predicted: np.ndarray, residuals: np.ndarray) 
     return float(np.mean((actual >= predicted + lo) & (actual <= predicted + hi)))
 
 
-def walk_forward_ols(matrix: pd.DataFrame) -> dict[str, Any]:
-    """Validação walk-forward com _N_FOLDS dobras expansivas e bootstrap moving-block.
+def walk_forward_ols(matrix: pd.DataFrame, *, estimator: str = "newey_west") -> dict[str, Any]:
+    """Validação walk-forward com dobras expansivas e estimador configurável.
 
     Retorna métricas agregadas, coeficientes padronizados da última dobra e DW médio.
     """
@@ -218,7 +276,7 @@ def walk_forward_ols(matrix: pd.DataFrame) -> dict[str, Any]:
         n_train = len(y_train)
         maxlags = max(1, int(np.floor(4 * (n_train / 100) ** (2 / 9))))
 
-        result = _ols_newey_west(y_train, X_train, maxlags=maxlags)
+        result = _fit_estimator(y_train, X_train, estimator=estimator, maxlags=maxlags)
         last_result = result
 
         X_test_const = sm.add_constant(X_test, has_constant="add")
@@ -253,6 +311,8 @@ def walk_forward_ols(matrix: pd.DataFrame) -> dict[str, Any]:
     coef_df = _standardized_coefficients(last_result, feature_cols)
 
     return {
+        "estimador": estimator,
+        "regressores": [column for column in feature_cols if not column.startswith("mes_")],
         "fold_metrics": fold_metrics,
         "mape_medio": float(np.mean(mapes)),
         "mape_desvio": float(np.std(mapes)),
@@ -285,6 +345,7 @@ def _standardized_coefficients(result: Any, feature_cols: list[str]) -> pd.DataF
     label_map = {f"X_{k}": v for k, v in MACRO_FEATURES_LAG1.items()}
     # FEDFUNDS usa coluna X_fed_funds_pct_lag2 (lag=2 explícito no nome).
     label_map.update({f"X_{k}_lag2": v for k, v in MACRO_FEATURES_LAG2.items()})
+    label_map.update({f"X_{k}": v for k, v in DIFF_FEATURES.items()})
     label_map.update(
         {
             "y_lag1": "Vendas t-1",
@@ -345,7 +406,7 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
         except Exception:
             pass
 
-    # Metas de aceite v2.1 — seleção otimizada de variáveis.
+    # Metas de aceite v2.2 — seleção temporal com diferenças macroeconômicas.
     metas = {
         "durbin_watson_min": 1.72,
         "mape_max_pct": 2.87,
@@ -363,15 +424,24 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
     }
 
     payload = {
-        "modelo": "OLS Newey-West (v2.1)",
+        "modelo": (
+            "OLS Newey-West (v2.2)"
+            if metrics.get("estimador", "newey_west") == "newey_west"
+            else "GLSAR (Cochrane-Orcutt)"
+        ),
         "descricao": (
-            "OLS com erros-padrão HAC (Newey-West). Seleção otimizada: y_lag1, "
+            "OLS com erros-padrão HAC (Newey-West). Seleção temporal: y_lag1, "
             "FEDFUNDS lag-2, GASREG lag-1, Desemprego, Financiamento auto, "
-            "Confiança do consumidor, Emprego total. CPI e Produção industrial removidos."
+            "Confiança do consumidor, Emprego total, CPI_diff_lag1, CPI_diff_lag3 "
+            "e PRODIND_diff_lag2. Níveis CPI e produção industrial não utilizados."
+            if metrics.get("estimador", "newey_west") == "newey_west"
+            else "GLSAR iterativo com estrutura AR(1). Matriz temporal: y_lag1, "
+            "drivers macro disponíveis e diferenças CPI/PRODIND quando presentes."
         ),
         "n_folds": metrics["n_folds"],
         "fold_size_meses": metrics["fold_size"],
         "n_obs_treino_final": metrics["n_obs_treino_final"],
+        "regressores": metrics.get("regressores", []),
         "metricas": {
             "mape_medio_pct": round(metrics["mape_medio"], 4),
             "mape_desvio_pp": round(metrics["mape_desvio"], 4),
@@ -399,13 +469,18 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
     return out
 
 
-def run_ols_forecast(store_dir: Path | None = None, save: bool = True) -> dict[str, Any]:
-    """Pipeline completo: lê o feature store, treina OLS NW, valida e persiste métricas.
+def run_ols_forecast(
+    store_dir: Path | None = None,
+    save: bool = True,
+    *,
+    estimator: str = "newey_west",
+) -> dict[str, Any]:
+    """Lê o feature store, treina o estimador selecionado e persiste as métricas.
 
     Retorna o dicionário de métricas e o DataFrame de coeficientes padronizados.
     """
     matrix = build_regression_matrix(store_dir)
-    results = walk_forward_ols(matrix)
+    results = walk_forward_ols(matrix, estimator=estimator)
 
     if save:
         save_performance_v2(results)

@@ -14,7 +14,7 @@ A plataforma integra a série mensal agregada `TOTALSA` do FRED, o catálogo pú
 | **Portfólio EPA** | Análise por marca, modelo, segmento e tecnologia; posicionamento de eficiência e emissões; auditoria temporal do campo `make`. |
 | **Energia & combustível** | Séries reais de energia, custo de referência por 100 milhas, sensibilidade a choques de preço, correlação de Spearman e comparação tecnológica controlada. |
 | **Mercado & forecast** | Forecast Engine modular com regressão de defasagens como modelo principal, benchmarks, walk-forward por horizonte, seleção de lags OOS e intervalos calibrados por resíduos OOS. |
-| **Modelos integrados** | OLS temporal com diagnóstico de VIF, Durbin–Watson, Ljung–Box, ARCH, Breusch–Pagan e Jarque–Bera; MLP de eficiência com validação temporal. |
+| **Modelos integrados** | OLS temporal v2.2 com diferenças percentuais de CPI/produção industrial, lags explícitos, Newey–West, contingência GLSAR e diagnóstico de VIF, Durbin–Watson, Ljung–Box, ARCH, Breusch–Pagan e Jarque–Bera; MLP de eficiência com validação temporal. |
 | **Risco & cenários** | Monte Carlo reprodutível, stockout probability, backlog risk, capacity-at-risk, VaR, CVaR, cenários parametrizados e sensibilidade com status de transmissão. |
 | **Planejamento** | Programação linear com capacidade regular e extra, estoque inicial e de segurança, backlog, setup, custo e otimização PuLP por caminhos amostrados. |
 | **Decisão** | Sinais green/amber/red/unavailable, confiança de disponibilidade das evidências, ações condicionais e limitações explícitas. |
@@ -28,6 +28,8 @@ A plataforma integra a série mensal agregada `TOTALSA` do FRED, o catálogo pú
 | [EPA / FuelEconomy.gov](https://www.fueleconomy.gov/feg/download.shtml) | Catálogo de configurações por marca, modelo, ano-modelo, classe, combustível, consumo, emissões e autonomia | Inteligência de portfólio, tecnologia, eficiência, emissões e rede neural. |
 | [EIA / FRED — gasolina e diesel](https://www.eia.gov/petroleum/gasdiesel/) | Séries nacionais semanais, consolidadas para frequência mensal | Preços por galão, custo energético e econometria temporal. |
 | [BLS / FRED — eletricidade (`APU000072610`)](https://fred.stlouisfed.org/series/APU000072610) | Preço médio urbano mensal de eletricidade por kWh | Custo de referência de BEVs, econometria e sensibilidade. |
+| [FRED — Consumer Price Index (`CPIAUCSL`)](https://fred.stlouisfed.org/series/CPIAUCSL) | Índice mensal de preços ao consumidor | Variação percentual mensal com lags 1 e 3 no OLS quando disponível no feature store. |
+| [FRED — Industrial Production (`INDPRO`)](https://fred.stlouisfed.org/series/INDPRO) | Índice mensal de produção industrial | Variação percentual mensal com lag 2 no OLS quando disponível no feature store. |
 
 Os dados locais em `data/` preservam os *snapshots* utilizados. O artefato `data/data_health.json` registra cobertura, campos, ausências, duplicidades, integridade e hash SHA-256. Consulte [`data/SOURCES.md`](data/SOURCES.md) para a proveniência detalhada.
 
@@ -38,6 +40,12 @@ Os dados locais em `data/` preservam os *snapshots* utilizados. O artefato `data
 O motor de mercado valida esquema e frequência, consolida a série em base mensal e executa diagnósticos de estacionariedade, decomposição STL e autocorrelação. O `src/forecast_engine.py` formaliza o contrato `fit/predict/forecast/evaluate/diagnostics`, mantém a **regressão de defasagens** como candidato principal e compara Seasonal Naive, Holt–Winters e AutoReg como benchmarks. O walk-forward por horizonte cobre 1, 3, 6 e 12 meses; conjuntos de lags são comparados por erro fora da amostra, nunca por R² de treino. A seleção pode priorizar a regressão principal somente quando seu MAPE estiver dentro da tolerância declarada.
 
 O modelo escolhido é reajustado sobre o histórico. O módulo `probabilistic_forecast.py` compara Normal, Student-t, bootstrap iid e moving block usando coverage e Pinball Loss em calibração prequential. Somente resíduos de dobras anteriores à dobra avaliada entram na calibração. O método, seed, origem dos resíduos, horizonte, período de treino e métricas de validação são persistidos nos metadados do forecast. O intervalo representa incerteza empírica de previsão, e não um limite causal ou garantia operacional.
+
+### OLS Newey–West v2.2 e autocorrelação residual
+
+O `src/forecast_model.py` monta uma matriz mensal point-in-time a partir do snapshot `TOTALSA` e do feature store agregado. Além de `y_lag1`, juros Fed em lag 2 e drivers macro em lag 1, CPI e produção industrial são tratados como variações percentuais mensais: `CPI_diff_lag1`, `CPI_diff_lag3` e `PRODIND_diff_lag2`. Se o builder já tiver materializado as colunas, elas são consumidas diretamente; se houver apenas os níveis `cpi` e `producao_industrial`, a diferença é derivada no momento da montagem. Na ausência da fonte, o regressor é omitido e o artefato registra o contrato efetivamente utilizado.
+
+A validação é walk-forward em três dobras de seis meses. O estimador padrão é OLS com erros-padrão HAC de Newey–West. Para autocorrelação residual persistente, o mesmo contrato expõe `GLSAR` iterativo AR(1) como contingência e permite comparar ambos sem misturar amostras ou horizontes. A decisão de promover o fallback depende de DW, MAPE, RMSE, cobertura P10–P90 e Pinball Loss simultaneamente, nunca de uma única métrica.
 
 ### Produto, tecnologia e energia
 
@@ -67,6 +75,7 @@ O planejamento resolve um problema linear com PuLP/CBC. Participação assumida,
 │   ├── analysis.py                          # Compatibilidade do pipeline de mercado e planejamento
 │   ├── forecast_engine.py                   # Contrato modular, benchmarks e walk-forward por horizonte
 │   ├── probabilistic_forecast.py            # Resíduos OOS, calibração e intervalos probabilísticos
+│   ├── forecast_model.py                    # OLS Newey–West v2.2, diferenças macro e GLSAR
 │   ├── econometric_diagnostics.py           # Diagnósticos econométricos consolidados
 │   ├── planning.py                          # Programação linear de produção, estoque e backlog
 │   ├── robust_planning.py                   # PuLP por caminhos Monte Carlo e planos representativos
@@ -95,7 +104,7 @@ O planejamento resolve um problema linear com PuLP/CBC. Participação assumida,
 └── docs/ci/quality.yml                      # Template GitHub Actions de qualidade
 ```
 
-A arquitetura detalhada está em [`docs/ARQUITETURA_ALVO.md`](docs/ARQUITETURA_ALVO.md); o diagnóstico da versão de origem, em [`docs/DIAGNOSTICO_TECNICO_INICIAL.md`](docs/DIAGNOSTICO_TECNICO_INICIAL.md). A evolução arquitetural seletiva orientada por padrões do ETIL está registrada em [`docs/RELATORIO_EVOLUCAO_ETIL.md`](docs/RELATORIO_EVOLUCAO_ETIL.md). A governança de risco e decisão está em [`docs/DECISION_INTELLIGENCE.md`](docs/DECISION_INTELLIGENCE.md), e a auditoria da evolução v2 em [`docs/AUDITORIA_EVOLUCAO_V2.md`](docs/AUDITORIA_EVOLUCAO_V2.md).
+A arquitetura detalhada está em [`docs/ARQUITETURA_ALVO.md`](docs/ARQUITETURA_ALVO.md); o diagnóstico da versão de origem, em [`docs/DIAGNOSTICO_TECNICO_INICIAL.md`](docs/DIAGNOSTICO_TECNICO_INICIAL.md). A evolução arquitetural seletiva orientada por padrões do ETIL está registrada em [`docs/RELATORIO_EVOLUCAO_ETIL.md`](docs/RELATORIO_EVOLUCAO_ETIL.md). A governança de risco e decisão está em [`docs/DECISION_INTELLIGENCE.md`](docs/DECISION_INTELLIGENCE.md), a auditoria da evolução v2 em [`docs/AUDITORIA_EVOLUCAO_V2.md`](docs/AUDITORIA_EVOLUCAO_V2.md), e a validação do OLS v2.2 em [`docs/VALIDACAO_OLS_V22.md`](docs/VALIDACAO_OLS_V22.md).
 
 ## Execução local
 
@@ -137,7 +146,7 @@ ruff format --check .
 pytest -q
 ```
 
-O projeto possui **79 testes aprovados** cobrindo ingestão, governança temporal, schema drift, forecast, walk-forward por horizonte, calibração probabilística, diagnósticos econométricos, planejamento, cenários, risco Monte Carlo, otimização robusta, Decision Intelligence, integração, catálogo EPA, energia e modelos avançados. O template de CI está em `docs/ci/quality.yml`; para ativá-lo, copie o arquivo para `.github/workflows/quality.yml` em um *commit* autorizado a criar ou atualizar *workflows* no GitHub.
+O projeto possui **81 testes aprovados** cobrindo ingestão, governança temporal, schema drift, forecast, walk-forward por horizonte, calibração probabilística, diferenças macroeconômicas, OLS/GLSAR, diagnósticos econométricos, planejamento, cenários, risco Monte Carlo, otimização robusta, Decision Intelligence, integração, catálogo EPA, energia e modelos avançados. O template de CI está em `docs/ci/quality.yml`; para ativá-lo, copie o arquivo para `.github/workflows/quality.yml` em um *commit* autorizado a criar ou atualizar *workflows* no GitHub.
 
 ## Referências
 
@@ -147,3 +156,5 @@ O projeto possui **79 testes aprovados** cobrindo ingestão, governança tempora
 - [4] [FRED / BLS — Electricity per Kilowatt-Hour](https://fred.stlouisfed.org/series/APU000072610)
 - [5] [Cleveland et al. (1990) — STL](https://www.wessa.net/download/stl.pdf)
 - [6] [Efron (1979) — Bootstrap Methods](https://doi.org/10.1214/aos/1176344552)
+- [7] [FRED — Consumer Price Index (`CPIAUCSL`)](https://fred.stlouisfed.org/series/CPIAUCSL)
+- [8] [FRED — Industrial Production Index (`INDPRO`)](https://fred.stlouisfed.org/series/INDPRO)

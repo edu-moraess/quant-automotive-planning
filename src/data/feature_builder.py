@@ -207,6 +207,20 @@ class FeatureBuilder:
             market["diferencial_gasolina_eletricidade"] = market["gasoline_regular"] - market["electricity_residential"]
         if {"gasoline_regular", "diesel"}.issubset(market.columns):
             market["diferencial_gasolina_diesel"] = market["gasoline_regular"] - market["diesel"]
+
+        # Transformações estacionárias dos níveis macroeconômicos. Os níveis brutos
+        # permanecem disponíveis para auditoria; o OLS usa somente as variações
+        # defasadas para reduzir tendência comum e evitar dupla contagem temporal.
+        if "cpi" in market.columns:
+            market["CPI_diff"] = market["cpi"].pct_change(fill_method=None).mul(100)
+            market["CPI_diff"] = market["CPI_diff"].replace([float("inf"), float("-inf")], pd.NA)
+            market["CPI_diff_lag1"] = market["CPI_diff"].shift(1)
+            market["CPI_diff_lag3"] = market["CPI_diff"].shift(3)
+        if "producao_industrial" in market.columns:
+            market["PRODIND_diff"] = market["producao_industrial"].pct_change(fill_method=None).mul(100)
+            market["PRODIND_diff"] = market["PRODIND_diff"].replace([float("inf"), float("-inf")], pd.NA)
+            market["PRODIND_diff_lag2"] = market["PRODIND_diff"].shift(2)
+
         market = add_lagged_changes(market, market.columns)
         market.index.name = "mes"
         return market
