@@ -33,7 +33,7 @@ Os dados locais em `data/` preservam os *snapshots* utilizados. O artefato `data
 
 ### Mercado e forecast probabilístico
 
-O motor de mercado valida esquema e frequência, consolida a série em base mensal e executa diagnósticos de estacionariedade, decomposição STL e autocorrelação. Quatro candidatos são comparados em validação temporal *walk-forward*: **referência sazonal**, **Holt–Winters aditivo**, **Ridge com defasagens** e **AutoReg sazonal**. Cada dobra é avaliada por MAPE, sMAPE, WAPE, MASE e RMSE; a seleção é feita com a métrica configurada de forma explícita.
+O motor de mercado valida esquema e frequência, consolida a série em base mensal e executa diagnósticos de estacionariedade, decomposição STL e autocorrelação. Quatro candidatos são comparados em validação temporal *walk-forward*: **referência sazonal**, **Holt–Winters aditivo**, **Ridge com defasagens** e **AutoReg sazonal**. Cada dobra é avaliada por MAPE, sMAPE, WAPE, MASE e RMSE; a seleção é feita com a métrica configurada de forma explícita. A qualidade dos intervalos p10–p90 é reportada de forma *prequential*: cada dobra pontuada usa exclusivamente resíduos de dobras anteriores, sem avaliar o passado com informação futura.
 
 O modelo escolhido é reajustado sobre o histórico. Seus erros fora da amostra alimentam reamostragem *bootstrap* iid ou em blocos móveis, conforme configuração, para construir cenários probabilísticos p10, p50 e p90. Portanto, o intervalo representa incerteza empírica de previsão, e não um limite causal ou garantia operacional.
 
@@ -85,7 +85,7 @@ O planejamento resolve um problema linear com PuLP/CBC. Participação assumida,
 └── docs/ci/quality.yml                      # Template GitHub Actions de qualidade
 ```
 
-A arquitetura detalhada está em [`docs/ARQUITETURA_ALVO.md`](docs/ARQUITETURA_ALVO.md); o diagnóstico da versão de origem, em [`docs/DIAGNOSTICO_TECNICO_INICIAL.md`](docs/DIAGNOSTICO_TECNICO_INICIAL.md).
+A arquitetura detalhada está em [`docs/ARQUITETURA_ALVO.md`](docs/ARQUITETURA_ALVO.md); o diagnóstico da versão de origem, em [`docs/DIAGNOSTICO_TECNICO_INICIAL.md`](docs/DIAGNOSTICO_TECNICO_INICIAL.md). A evolução arquitetural seletiva orientada por padrões do ETIL está registrada em [`docs/RELATORIO_EVOLUCAO_ETIL.md`](docs/RELATORIO_EVOLUCAO_ETIL.md).
 
 ## Execução local
 

@@ -1,9 +1,19 @@
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from analysis import compute_diagnostics, make_forecast, metricas, prepare_data, run_backtest
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from analysis import (
+    compute_diagnostics,
+    make_forecast,
+    metricas,
+    prepare_data,
+    prequential_interval_quality,
+    run_backtest,
+)
 
 
 def _market_data() -> pd.DataFrame:
@@ -36,3 +46,26 @@ def test_backtest_and_probabilistic_forecast_expose_quantiles():
     assert np.all(forecast["p50"] <= forecast["p90"])
     assert simulations.shape == (200, 4)
     assert backtest["interval_quality"]["pinball_loss_medio"] >= 0
+    assert backtest["prequential_interval_quality"]["observacoes_avaliadas"] == 3
+    assert 0 <= backtest["prequential_interval_quality"]["coverage_p10_p90"] <= 1
+
+
+def test_prequential_calibration_does_not_use_future_fold_residuals():
+    actuals = [np.array([0.0, 0.0]), np.array([10.0, 10.0])]
+    predictions = [np.array([0.0, 0.0]), np.array([0.0, 0.0])]
+    quality = prequential_interval_quality(actuals, predictions)
+    assert quality["observacoes_avaliadas"] == 2
+    assert quality["dobras_avaliadas"] == 1
+    assert quality["coverage_p10_p90"] == 0.0
+    assert quality["pinball_loss_medio"] >= 0
+
+
+def test_probabilistic_forecast_is_reproducible_and_non_negative():
+    data = _market_data()
+    backtest = run_backtest(data, n_dobras=2, tamanho_dobra=3)
+    first_forecast, first_simulations = make_forecast(data, backtest, horizon=4, bootstrap_replicas=100, seed=17)
+    second_forecast, second_simulations = make_forecast(data, backtest, horizon=4, bootstrap_replicas=100, seed=17)
+    assert np.array_equal(first_simulations, second_simulations)
+    assert np.all(first_simulations >= 0)
+    assert np.all(first_forecast["p10"] <= first_forecast["p50"])
+    assert np.all(first_forecast["p50"] <= first_forecast["p90"])

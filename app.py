@@ -1044,15 +1044,20 @@ with tab_market:
         width="stretch",
         hide_index=True,
     )
-    vertical_metric(
-        "Cobertura histórica p10–p90",
-        fmt_pct(backtest["interval_quality"]["coverage_p10_p90"] * 100),
-        f"Bootstrap {market['parameters']['bootstrap_method']}",
+    prequential_quality = backtest["prequential_interval_quality"]
+    calibration_detail = (
+        f"{prequential_quality['observacoes_avaliadas']} observações em "
+        f"{prequential_quality['dobras_avaliadas']} dobras; bootstrap {market['parameters']['bootstrap_method']}"
     )
     vertical_metric(
-        "Pinball loss médio",
-        f"{backtest['interval_quality']['pinball_loss_medio']:.3f}",
-        "Métrica de qualidade de quantis fora da amostra",
+        "Cobertura prequential p10–p90",
+        fmt_pct(prequential_quality["coverage_p10_p90"] * 100),
+        calibration_detail,
+    )
+    vertical_metric(
+        "Pinball loss prequential",
+        f"{prequential_quality['pinball_loss_medio']:.3f}",
+        "Cada dobra é avaliada apenas com resíduos de dobras anteriores.",
     )
     with st.expander("Diagnóstico residual e decomposição"):
         st.plotly_chart(

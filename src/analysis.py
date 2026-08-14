@@ -244,7 +244,7 @@ def prever_holt_winters(treino: pd.DataFrame, n_periodos: int) -> np.ndarray:
         treino["vendas_saar_milhoes"],
         trend="add",
         seasonal="add",
-        seasonal_periods=12,
+        seasonal_periods=FORECAST_DEFAULTS.seasonal_periods,
         initialization_method="estimated",
     ).fit(optimized=True)
     return np.asarray(model.forecast(n_periodos), dtype=float)
@@ -261,7 +261,9 @@ def construir_features_regressao(data: pd.DataFrame) -> pd.DataFrame:
 
 def prever_regressao_defasagens(treino: pd.DataFrame, n_periodos: int) -> np.ndarray:
     train_features = construir_features_regressao(treino).dropna(subset=[*REGRESSION_COLUMNS, "vendas_saar_milhoes"])
-    model = Ridge(alpha=1.0).fit(train_features[REGRESSION_COLUMNS], train_features["vendas_saar_milhoes"])
+    model = Ridge(alpha=FORECAST_DEFAULTS.ridge_alpha).fit(
+        train_features[REGRESSION_COLUMNS], train_features["vendas_saar_milhoes"]
+    )
     history = treino[["data", "vendas_saar_milhoes", "mes"]].copy()
     predictions: list[float] = []
     for _ in range(n_periodos):
@@ -287,7 +289,14 @@ def prever_regressao_defasagens(treino: pd.DataFrame, n_periodos: int) -> np.nda
 def prever_autoreg_sazonal(treino: pd.DataFrame, n_periodos: int) -> np.ndarray:
     """AutoReg com tendência e efeitos sazonais; adequado a uma série mensal curta."""
     series = treino["vendas_saar_milhoes"].astype(float).to_numpy()
-    model = AutoReg(series, lags=12, trend="ct", seasonal=True, period=12, old_names=False).fit()
+    model = AutoReg(
+        series,
+        lags=FORECAST_DEFAULTS.autoreg_lags,
+        trend="ct",
+        seasonal=True,
+        period=FORECAST_DEFAULTS.seasonal_periods,
+        old_names=False,
+    ).fit()
     return np.asarray(model.predict(start=len(series), end=len(series) + n_periodos - 1, dynamic=False), dtype=float)
 
 
@@ -355,6 +364,51 @@ def _interval_quality(actual: np.ndarray, predicted: np.ndarray, residuals: np.n
         error = actual - (predicted + np.quantile(residuals, quantile))
         losses.append(float(np.mean(np.maximum(quantile * error, (quantile - 1) * error))))
     return {"coverage_p10_p90": float(coverage), "pinball_loss_medio": float(np.mean(losses))}
+
+
+def prequential_interval_quality(
+    actuals_by_fold: list[np.ndarray], predictions_by_fold: list[np.ndarray]
+) -> dict[str, float | int]:
+    """Avalia intervalos por dobra usando somente resíduos de dobras anteriores."""
+    if len(actuals_by_fold) != len(predictions_by_fold):
+        raise ValueError("Atuals e previsões devem conter o mesmo número de dobras.")
+
+    prior_residuals: list[np.ndarray] = []
+    coverages: list[np.ndarray] = []
+    losses: list[np.ndarray] = []
+    scored_folds = 0
+    for actual, predicted in zip(actuals_by_fold, predictions_by_fold, strict=True):
+        observed = np.asarray(actual, dtype=float)
+        estimate = np.asarray(predicted, dtype=float)
+        if observed.shape != estimate.shape or observed.ndim != 1:
+            raise ValueError("Cada dobra deve conter vetores unidimensionais de mesmo tamanho.")
+        if not np.isfinite(observed).all() or not np.isfinite(estimate).all():
+            raise ValueError("A avaliação prequential exige valores finitos.")
+        if prior_residuals:
+            residuals = np.concatenate(prior_residuals)
+            lower, median, upper = np.quantile(residuals, [0.10, 0.50, 0.90])
+            coverages.append((observed >= estimate + lower) & (observed <= estimate + upper))
+            fold_losses = []
+            for quantile, adjustment in ((0.10, lower), (0.50, median), (0.90, upper)):
+                error = observed - (estimate + adjustment)
+                fold_losses.append(np.maximum(quantile * error, (quantile - 1) * error))
+            losses.append(np.mean(np.vstack(fold_losses), axis=0))
+            scored_folds += 1
+        prior_residuals.append(observed - estimate)
+
+    if not coverages:
+        return {
+            "coverage_p10_p90": np.nan,
+            "pinball_loss_medio": np.nan,
+            "observacoes_avaliadas": 0,
+            "dobras_avaliadas": 0,
+        }
+    return {
+        "coverage_p10_p90": float(np.concatenate(coverages).mean()),
+        "pinball_loss_medio": float(np.concatenate(losses).mean()),
+        "observacoes_avaliadas": int(sum(len(values) for values in coverages)),
+        "dobras_avaliadas": scored_folds,
+    }
 
 
 def run_backtest(
@@ -460,6 +514,9 @@ def run_backtest(
         "residual_acf": diagnostics["residual_acf"],
         "residual_diagnostics": diagnostics,
         "interval_quality": _interval_quality(actuals, winner_predictions, residuals),
+        "prequential_interval_quality": prequential_interval_quality(
+            actuals_by_model[winner], predictions_by_model[winner]
+        ),
         "fold_details": pd.DataFrame(fold_details),
         "oos_predictions": pd.DataFrame(prediction_rows),
     }

@@ -85,3 +85,9 @@ A segunda passagem sequencial, executada em sessão limpa, confirmou responsivid
 A auditoria confirmou que o painel não consulta EPA, EIA ou BLS em tempo de interação. O catálogo EPA e o snapshot de energia são lidos localmente e protegidos por cache dependente do `mtime`; os artefatos dos modelos também são locais. No primeiro carregamento sem cache, foram medidos 0,862 s para leitura e normalização EPA, 0,007 s para energia local, 0,087 s para o custo energético derivado e 0,001 s para os artefatos. Assim, nenhuma dessas fontes adiciona latência de rede ao clique de atualização FRED.
 
 A única oportunidade de rede fora do FRED de mercado estava no script offline de atualização energética: três séries FRED/BLS eram buscadas em sequência, somando 6,552 s na medição inicial. O processo foi alterado para três requisições paralelas com timeout de 4 s, no máximo duas tentativas e registro da política na proveniência. A execução real atualizou todas as três séries com status `ONLINE`, preservou a cobertura e concluiu em **3,733 s**, redução observada de aproximadamente **43%** no fluxo de atualização de energia. Essa atualização permanece fora da interface para não adicionar chamadas de rede às abas.
+
+### Evolução seletiva inspirada no ETIL
+
+Após reinicialização do Streamlit, a aplicação carregou em sessão limpa usando o snapshot FRED e preservou o modelo vencedor, o histórico e os controles. A validação visual da aba de mercado segue para confirmar a apresentação da calibração prequential adicionada ao backtest.
+
+A aba **Mercado & Forecast** foi validada em sessão limpa. O modelo vencedor permaneceu **Regressão com defasagens**, com MAPE médio de 3,97%; a nova leitura exibiu cobertura prequential p10–p90 de 66,7% sobre 18 observações em três dobras e pinball loss prequential de 0,275. A interface explicitou que cada dobra usa apenas resíduos de dobras anteriores, sem erro de renderização.

@@ -36,6 +36,9 @@ class ForecastSettings:
     horizon_months: int = 6
     n_folds: int = 4
     test_size_months: int = 6
+    seasonal_periods: int = 12
+    autoreg_lags: int = 12
+    ridge_alpha: float = 1.0
     bootstrap_replicas: int = 2000
     bootstrap_block_size: int = 3
     random_seed: int = 42
