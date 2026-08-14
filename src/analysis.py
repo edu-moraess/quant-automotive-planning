@@ -27,6 +27,7 @@ from statsmodels.tsa.stattools import acf, adfuller, kpss, pacf
 from config import FORECAST_DEFAULTS, SOURCES, PlanningAssumptions
 from ingestion import load_csv_with_fallback
 from planning import build_scenario_table, build_sensitivity, decision_brief, demand_from_saar, solve_production_plan
+from probabilistic_forecast import ProbabilisticForecastConfig, build_probabilistic_forecast
 
 FRED_CSV_URL = SOURCES.fred_market_url
 FRED_SERIES_URL = "https://fred.stlouisfed.org/series/TOTALSA"
@@ -525,6 +526,8 @@ def run_backtest(
         "actuals": actuals,
         "winner_predictions": winner_predictions,
         "residuals": residuals,
+        "actuals_by_winner_fold": actuals_by_model[winner],
+        "predictions_by_winner_fold": predictions_by_model[winner],
         "ljung_box": diagnostics["ljung_box"],
         "residual_acf": diagnostics["residual_acf"],
         "residual_diagnostics": diagnostics,
@@ -559,7 +562,7 @@ def make_forecast(
     seed: int = FORECAST_DEFAULTS.random_seed,
     bootstrap_block_size: int = FORECAST_DEFAULTS.bootstrap_block_size,
 ) -> tuple[pd.DataFrame, np.ndarray]:
-    """Reestima o vencedor e produz P10/P25/P50/P75/P90 por bootstrap empírico."""
+    """Reestima o vencedor e produz quantis a partir de resíduos OOS calibrados."""
     winner = backtest["winner"]
     future_dates = pd.date_range(data["data"].max() + pd.offsets.MonthBegin(1), periods=horizon, freq="MS")
     if winner == "Holt-Winters":
@@ -570,28 +573,31 @@ def make_forecast(
         point_forecast = prever_autoreg_sazonal(data, horizon)
     else:
         point_forecast = prever_sazonal_naive(data, future_dates)
-    residuals = np.asarray(backtest["residuals"], dtype=float)
-    rng = np.random.default_rng(seed)
-    ljung = backtest.get("residual_diagnostics", {}).get("ljung_box", pd.DataFrame())
-    residual_dependence = not ljung.empty and bool((ljung["lb_pvalue"] < 0.05).any())
-    if residual_dependence:
-        bootstrap_errors = _moving_block_bootstrap(residuals, bootstrap_replicas, horizon, bootstrap_block_size, rng)
-        bootstrap_method = "moving_block"
-    else:
-        bootstrap_errors = rng.choice(residuals, size=(bootstrap_replicas, horizon), replace=True)
-        bootstrap_method = "iid"
-    simulations = np.maximum(point_forecast[None, :] + bootstrap_errors, 0)
-    quantiles = {
-        f"p{int(q * 100)}": np.percentile(simulations, q * 100, axis=0) for q in FORECAST_DEFAULTS.confidence_quantiles
-    }
-    forecast = pd.DataFrame({"data": future_dates, **quantiles})
-    forecast["cenario_conservador"] = forecast["p10"]
-    forecast["cenario_base"] = forecast["p50"]
-    forecast["cenario_otimista"] = forecast["p90"]
-    forecast["demanda_mensal_base_milhoes"] = forecast["p50"] / 12
-    forecast.attrs["bootstrap_method"] = bootstrap_method
-    forecast.attrs["bootstrap_block_size"] = bootstrap_block_size if residual_dependence else None
-    return forecast, simulations
+    result = build_probabilistic_forecast(
+        point_forecast,
+        np.asarray(backtest["residuals"], dtype=float),
+        future_dates,
+        config=ProbabilisticForecastConfig(
+            replicas=bootstrap_replicas,
+            seed=seed,
+            block_size=bootstrap_block_size,
+            quantiles=FORECAST_DEFAULTS.confidence_quantiles,
+        ),
+        actuals_by_fold=backtest.get("actuals_by_winner_fold", []),
+        predictions_by_fold=backtest.get("predictions_by_winner_fold", []),
+        metadata={
+            "model_name": winner,
+            "forecast_origin": data["data"].max().strftime("%Y-%m"),
+            "training_period": {
+                "start": data["data"].min().strftime("%Y-%m"),
+                "end": data["data"].max().strftime("%Y-%m"),
+            },
+            "validation_metrics": {
+                "mape": backtest["summary"].loc[backtest["summary"]["modelo"].eq(winner), "mape_medio"].iloc[0]
+            },
+        },
+    )
+    return result.forecast, result.simulations
 
 
 def converter_demanda_veiculos(scenario_millions_saar: pd.Series, participation: float) -> pd.Series:

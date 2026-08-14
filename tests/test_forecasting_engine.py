@@ -123,3 +123,13 @@ def test_econometric_diagnostics_return_required_families():
         diagnostics
     )
     assert not diagnostics["vif"].empty
+
+
+def test_probabilistic_forecast_records_oos_residual_method_and_metadata():
+    data = _market_data()
+    backtest = run_backtest(data, n_dobras=3, tamanho_dobra=3)
+    forecast, simulations = make_forecast(data, backtest, horizon=4, bootstrap_replicas=200, seed=23)
+    assert forecast.attrs["bootstrap_method"] in {"normal", "student_t", "iid_bootstrap", "moving_block"}
+    assert forecast.attrs["residual_source"] == "walk_forward_out_of_sample"
+    assert forecast.attrs["forecast_horizon"] == 4
+    assert simulations.shape == (200, 4)
