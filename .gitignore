@@ -11,4 +11,6 @@ env/
 .DS_Store
 .streamlit/secrets.toml
 *.log
+data/feature_cache/
+logs/
 .ipynb_checkpoints/

@@ -18,7 +18,8 @@ sys.path.insert(0, str(ROOT / "src"))
 import analysis as analysis_module  # noqa: E402
 import energy_intelligence as energy_module  # noqa: E402
 import vehicle_intelligence as vehicle_module  # noqa: E402
-from config import ENERGY_SNAPSHOT, EPA_SNAPSHOT, MARKET_SNAPSHOT, MODEL_ARTIFACTS_DIR  # noqa: E402
+from config import DATA_DIR, ENERGY_SNAPSHOT, EPA_SNAPSHOT, MARKET_SNAPSHOT, MODEL_ARTIFACTS_DIR  # noqa: E402
+from data.feature_store import FeatureStore  # noqa: E402
 from presentation import fmt_month_display, format_temporal_display  # noqa: E402
 from scenarios import energy_price_sensitivity  # noqa: E402
 
@@ -83,6 +84,31 @@ def load_model_artifacts(artifact_mtime: float) -> dict[str, pd.DataFrame | dict
         "importance": pd.read_csv(MODEL_ARTIFACTS_DIR / "neural_permutation_importance.csv"),
         "error_by_powertrain": pd.read_csv(MODEL_ARTIFACTS_DIR / "neural_error_by_powertrain.csv"),
     }
+
+
+@st.cache_data(show_spinner=False)
+def load_feature_source_status(manifest_mtime: float) -> pd.DataFrame:
+    """Lê o manifesto local da camada de features sem executar novas requisições."""
+    manifest = FeatureStore(DATA_DIR / "feature_store").load_manifest()
+    sources = manifest.get("sources", {})
+    if not isinstance(sources, dict) or not sources:
+        return pd.DataFrame()
+    rows = []
+    for source, values in sources.items():
+        if not isinstance(values, dict):
+            continue
+        rows.append(
+            {
+                "Fonte": source.upper(),
+                "Status": values.get("state", "—"),
+                "Linhas": values.get("rows", 0),
+                "Cobertura": fmt_month_display(pd.Timestamp(values["coverage_end"]))
+                if values.get("coverage_end")
+                else "—",
+                "Mensagem": values.get("message") or "—",
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 @st.cache_data(show_spinner=False)
@@ -610,6 +636,8 @@ except Exception as error:
 
 metadata = vehicle_universe_metadata(vehicle_data)
 year_bounds = (metadata["ano_inicial"], metadata["ano_final"])
+feature_manifest = DATA_DIR / "feature_store" / "manifest.json"
+feature_status = load_feature_source_status(feature_manifest.stat().st_mtime if feature_manifest.exists() else 0.0)
 
 with st.sidebar:
     st.markdown("## QUANT")
@@ -664,6 +692,13 @@ with st.sidebar:
         if market_updated:
             st.session_state["market_analysis_run_id"] = st.session_state.get("market_analysis_run_id", 0) + 1
             st.success("Forecast e planejamento atualizados.")
+
+    with st.expander("Camada de features gratuitas"):
+        if feature_status.empty:
+            st.caption("Aguardando a primeira atualização automatizada de FRED, EIA e News API.")
+        else:
+            st.dataframe(feature_status, hide_index=True, use_container_width=True)
+            st.caption("O painel apenas lê o manifesto local; consultas externas rodam fora da interface.")
 
     st.markdown("---")
     st.markdown(f"[Mercado · FRED]({FRED_SERIES_URL})")

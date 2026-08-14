@@ -1,0 +1,35 @@
+[fred_series]
+TOTALSA = "vendas_saar_milhoes"
+UNRATE = "desemprego_pct"
+CPIAUCSL = "cpi"
+FEDFUNDS = "fed_funds_pct"
+MORTGAGE30US = "mortgage_30y_pct"
+UMCSENT = "confianca_consumidor"
+INDPRO = "producao_industrial"
+RSAFS = "vendas_varejo"
+
+[eia_series]
+gasoline_regular = "PET.WRG0_EPM0_PTE_DPG.W"
+diesel = "PET.WDIUPUS1.W"
+electricity_residential = "ELEC.PRICE.US-RES.M"
+
+[[news_queries]]
+query_id = "ford_recall"
+query = "Ford AND recall"
+brand = "Ford"
+theme = "recall"
+language = "en"
+
+[[news_queries]]
+query_id = "toyota_incentive"
+query = "Toyota AND incentive"
+brand = "Toyota"
+theme = "incentive"
+language = "en"
+
+[[news_queries]]
+query_id = "tesla_production"
+query = "Tesla AND production"
+brand = "Tesla"
+theme = "production"
+language = "en"

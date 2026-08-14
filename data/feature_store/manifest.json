@@ -1,0 +1,25 @@
+{
+  "updated_at_utc": "2026-08-14T13:42:03.956437+00:00",
+  "sources": {
+    "fred": {
+      "state": "degraded",
+      "rows": 19,
+      "requested_at_utc": "2026-08-14T13:42:03.756714+00:00",
+      "latency_ms": 0.0,
+      "coverage_start": "2025-01-01T00:00:00",
+      "coverage_end": "2026-07-01T00:00:00",
+      "cache_hit": false,
+      "message": "TOTALSA carregada do snapshot local; macro online indisponível ou sem chave."
+    },
+    "feature_builder": {
+      "state": "degraded",
+      "rows": 19,
+      "requested_at_utc": "2026-08-14T13:42:03.810048+00:00",
+      "latency_ms": null,
+      "coverage_start": "2025-01-01T00:00:00",
+      "coverage_end": "2026-07-01T00:00:00",
+      "cache_hit": false,
+      "message": "Features mensais construídas sem usar textos brutos nem observações futuras."
+    }
+  }
+}
