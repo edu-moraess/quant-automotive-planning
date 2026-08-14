@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -21,7 +22,6 @@ from config import ENERGY_SNAPSHOT, EPA_SNAPSHOT, MARKET_SNAPSHOT, MODEL_ARTIFAC
 from scenarios import energy_price_sensitivity  # noqa: E402
 
 FRED_SERIES_URL = analysis_module.FRED_SERIES_URL
-run_full_analysis = analysis_module.run_full_analysis
 EPA_DOWNLOAD_PAGE = vehicle_module.EPA_DOWNLOAD_PAGE
 load_vehicle_data = vehicle_module.load_vehicle_data
 filter_vehicles = vehicle_module.filter_vehicles
@@ -50,7 +50,7 @@ RED = "#C43D3D"
 PURPLE = "#6959CD"
 MUTED = "#667085"
 GRID = "#E5EAF0"
-MARKET_CACHE_SCHEMA_VERSION = 2
+MARKET_SOURCE_CACHE_SCHEMA_VERSION = 1
 
 ENERGY_COLORS = {
     "Gasolina": "#577590",
@@ -85,13 +85,36 @@ def load_model_artifacts(artifact_mtime: float) -> dict[str, pd.DataFrame | dict
 
 
 @st.cache_data(show_spinner=False)
-def run_market_cached(
-    cache_schema_version: int,
-    analysis_run_id: int,
+def load_market_source_cached(
+    source_schema_version: int,
+    refresh_run_id: int,
     market_mtime: float,
-    n_folds: int,
-    test_size: int,
-    horizon: int,
+    allow_online: bool,
+) -> dict:
+    """Consulta ou lê TOTALSA; o contador força rede sem invalidar a modelagem idêntica."""
+    started = perf_counter()
+    raw, provenance = analysis_module.read_fred_with_provenance(
+        fallback_path=MARKET_SNAPSHOT,
+        allow_online=allow_online,
+    )
+    data, quality = analysis_module.prepare_data(raw)
+    refresh = analysis_module.market_refresh_summary(data, MARKET_SNAPSHOT, provenance)
+    refresh["fetch_duration_seconds"] = perf_counter() - started
+    return {"data": data, "quality": quality, "market_refresh": refresh}
+
+
+@st.cache_data(show_spinner=False)
+def run_forecast_cached(data: pd.DataFrame, n_folds: int, test_size: int, horizon: int) -> dict:
+    """Executa a modelagem somente quando a série ou parâmetros de forecast mudam."""
+    diagnostics = analysis_module.compute_diagnostics(data)
+    backtest = analysis_module.run_backtest(data, n_folds, test_size)
+    forecast, simulations = analysis_module.make_forecast(data, backtest, horizon, bootstrap_replicas=2000, seed=42)
+    return {"diagnostics": diagnostics, "backtest": backtest, "forecast": forecast, "simulations": simulations}
+
+
+@st.cache_data(show_spinner=False)
+def run_planning_cached(
+    forecast: pd.DataFrame,
     participation: float,
     capacity: int,
     initial_inventory: int,
@@ -103,27 +126,21 @@ def run_market_cached(
     safety_stock: int,
     safety_stock_penalty: float,
     setup_cost: float,
-    allow_online: bool,
 ) -> dict:
-    return run_full_analysis(
-        fallback_path=MARKET_SNAPSHOT,
-        n_folds=n_folds,
-        test_size=test_size,
-        horizon=horizon,
-        bootstrap_replicas=2000,
-        seed=42,
-        participation=participation,
-        capacity=capacity,
-        initial_inventory=initial_inventory,
-        production_cost=production_cost,
-        inventory_cost=inventory_cost,
-        backlog_cost=backlog_cost,
+    """Resolve o plano apenas quando forecast ou hipóteses operacionais forem alterados."""
+    return analysis_module.build_production_plan(
+        forecast,
+        participation,
+        capacity,
+        initial_inventory,
+        production_cost,
+        inventory_cost,
+        backlog_cost,
         overtime_capacity=overtime_capacity,
         overtime_cost=overtime_cost,
         safety_stock=safety_stock,
         safety_stock_penalty=safety_stock_penalty,
         setup_cost=setup_cost,
-        allow_online=allow_online,
     )
 
 
@@ -637,14 +654,16 @@ registry = brand_registry(vehicle_data)
 energy_sensitivity = energy_price_sensitivity(filtered, energy_prices)
 
 try:
-    with st.spinner("Executando mercado, forecast probabilístico e planejamento sob as hipóteses declaradas..."):
-        market = run_market_cached(
-            MARKET_CACHE_SCHEMA_VERSION,
+    with st.spinner("Consultando FRED e reutilizando a modelagem quando a série não mudou..."):
+        market_source = load_market_source_cached(
+            MARKET_SOURCE_CACHE_SCHEMA_VERSION,
             st.session_state.get("market_analysis_run_id", 0),
             MARKET_SNAPSHOT.stat().st_mtime,
-            n_folds,
-            test_size,
-            horizon,
+            allow_online,
+        )
+        market_model = run_forecast_cached(market_source["data"], n_folds, test_size, horizon)
+        production = run_planning_cached(
+            market_model["forecast"],
             participation_pct / 100,
             int(capacity),
             int(initial_inventory),
@@ -656,8 +675,13 @@ try:
             int(safety_stock),
             float(safety_stock_penalty),
             float(setup_cost),
-            allow_online,
         )
+        market = {
+            **market_source,
+            **market_model,
+            "production": production,
+            "parameters": {"bootstrap_method": market_model["forecast"].attrs.get("bootstrap_method")},
+        }
 except Exception as error:
     st.error(f"Não foi possível executar a camada de mercado: {error}")
     st.stop()
@@ -704,7 +728,7 @@ if market_refresh["source_status"] == "ONLINE":
         else "A fonte online coincide com o snapshot versionado; por isso os gráficos e métricas permanecem iguais."
     )
     st.markdown(
-        f'<div class="note"><strong>FRED online aplicado.</strong> {fmt_int(market_refresh["observations"])} observações, de {market_refresh["data_start"]} a {market_refresh["data_end"]}; consulta em {refreshed_at}. {variation} <strong>Esta atualização altera apenas Resumo, Mercado & Forecast e Planejamento.</strong> Portfólio, Energia & Combustível e Modelos integrados usam EPA, energia e artefatos próprios.</div>',
+        f'<div class="note"><strong>FRED online aplicado.</strong> {fmt_int(market_refresh["observations"])} observações, de {market_refresh["data_start"]} a {market_refresh["data_end"]}; consulta em {refreshed_at}, concluída em {market_refresh["fetch_duration_seconds"]:.1f}s. {variation} <strong>Esta atualização altera apenas Resumo, Mercado & Forecast e Planejamento.</strong> Portfólio, Energia & Combustível e Modelos integrados usam EPA, energia e artefatos próprios.</div>',
         unsafe_allow_html=True,
     )
 else:

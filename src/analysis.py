@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -29,6 +30,7 @@ from planning import build_scenario_table, build_sensitivity, decision_brief, de
 
 FRED_CSV_URL = SOURCES.fred_market_url
 FRED_SERIES_URL = "https://fred.stlouisfed.org/series/TOTALSA"
+FRED_REFRESH_SETTINGS = replace(SOURCES, request_timeout_seconds=4.0, max_attempts=2, retry_backoff_seconds=0.25)
 MODEL_NAMES = ["Referência sazonal", "Holt-Winters", "Regressão com defasagens", "AutoReg sazonal"]
 MODEL_COMPLEXITY = {
     "Referência sazonal": 1,
@@ -54,7 +56,7 @@ def read_fred_with_provenance(
         source_name="FRED TOTALSA",
         snapshot_path=fallback_path,
         allow_online=allow_online,
-        settings=SOURCES,
+        settings=FRED_REFRESH_SETTINGS,
     )
     label = "FRED — fonte online" if result.source_status == "ONLINE" else "Snapshot local versionado"
     return result.frame, {
