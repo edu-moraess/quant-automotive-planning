@@ -40,12 +40,12 @@ MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "O
 REGRESSION_COLUMNS = ["lag_1", "lag_12", "tendencia", *[f"mes_{month}" for month in range(2, 13)]]
 
 
-def read_fred_csv(
+def read_fred_with_provenance(
     source: str = FRED_CSV_URL,
     fallback_path: str | Path | None = None,
     allow_online: bool = True,
-) -> tuple[pd.DataFrame, str]:
-    """Lê TOTALSA com timeout, retry, schema validado e fallback versionado."""
+) -> tuple[pd.DataFrame, dict[str, str | None]]:
+    """Lê TOTALSA e preserva a proveniência da fonte efetivamente usada."""
     if fallback_path is None:
         raise ValueError("Um snapshot local é obrigatório para a degradação controlada da fonte FRED.")
     result = load_csv_with_fallback(
@@ -56,7 +56,55 @@ def read_fred_csv(
         allow_online=allow_online,
         settings=SOURCES,
     )
-    return result.frame, "FRED — fonte online" if result.source_status == "ONLINE" else "Snapshot local versionado"
+    label = "FRED — fonte online" if result.source_status == "ONLINE" else "Snapshot local versionado"
+    return result.frame, {
+        "source_status": result.source_status,
+        "source_label": label,
+        "source_url": result.source_url,
+        "retrieved_at_utc": result.retrieved_at_utc,
+        "fallback_reason": result.fallback_reason,
+    }
+
+
+def read_fred_csv(
+    source: str = FRED_CSV_URL,
+    fallback_path: str | Path | None = None,
+    allow_online: bool = True,
+) -> tuple[pd.DataFrame, str]:
+    """Compatibilidade: retorna série TOTALSA e rótulo legível da fonte."""
+    frame, provenance = read_fred_with_provenance(source, fallback_path, allow_online)
+    return frame, str(provenance["source_label"])
+
+
+def market_refresh_summary(
+    market_data: pd.DataFrame,
+    snapshot_path: str | Path,
+    provenance: dict[str, str | None],
+) -> dict[str, str | int | None]:
+    """Resume a atualização FRED comparando a série usada ao snapshot versionado."""
+    snapshot_raw = pd.read_csv(snapshot_path)
+    snapshot_data, _ = prepare_data(snapshot_raw)
+    current = market_data[["data", "vendas_saar_milhoes"]].rename(columns={"vendas_saar_milhoes": "valor_atual"})
+    snapshot = snapshot_data[["data", "vendas_saar_milhoes"]].rename(columns={"vendas_saar_milhoes": "valor_snapshot"})
+    comparison = current.merge(snapshot, on="data", how="left")
+    common = comparison.dropna(subset=["valor_snapshot"])
+    revised = int(
+        (
+            ~np.isclose(common["valor_atual"].to_numpy(), common["valor_snapshot"].to_numpy(), rtol=1e-10, atol=1e-12)
+        ).sum()
+    )
+    snapshot_end = snapshot_data["data"].max()
+    current_end = market_data["data"].max()
+    return {
+        **provenance,
+        "observations": int(len(market_data)),
+        "data_start": market_data["data"].min().strftime("%Y-%m"),
+        "data_end": current_end.strftime("%Y-%m"),
+        "snapshot_observations": int(len(snapshot_data)),
+        "snapshot_data_end": snapshot_end.strftime("%Y-%m"),
+        "new_observations": int(comparison["valor_snapshot"].isna().sum()),
+        "revised_observations": revised,
+    }
 
 
 def prepare_data(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
@@ -556,8 +604,9 @@ def run_full_analysis(
     allow_online: bool = True,
 ) -> dict[str, Any]:
     """Executa mercado → forecast probabilístico → plano operacional de forma determinística."""
-    raw, source_label = read_fred_csv(source_url, fallback_path, allow_online=allow_online)
+    raw, provenance = read_fred_with_provenance(source_url, fallback_path, allow_online=allow_online)
     data, quality = prepare_data(raw)
+    refresh = market_refresh_summary(data, fallback_path, provenance)
     diagnostics = compute_diagnostics(data)
     backtest = run_backtest(data, n_folds, test_size)
     forecast, simulations = make_forecast(data, backtest, horizon, bootstrap_replicas, seed)
@@ -577,7 +626,8 @@ def run_full_analysis(
     )
     return {
         "raw": raw,
-        "source_label": source_label,
+        "source_label": str(refresh["source_label"]),
+        "market_refresh": refresh,
         "data": data,
         "quality": quality,
         "diagnostics": diagnostics,

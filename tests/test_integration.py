@@ -24,6 +24,10 @@ def test_full_pipeline_runs_from_versioned_snapshot():
         source_url="file-that-does-not-exist.csv",
     )
     assert result["source_label"] == "Snapshot local versionado"
+    assert result["market_refresh"]["source_status"] == "SNAPSHOT"
+    assert result["market_refresh"]["new_observations"] == 0
+    assert result["market_refresh"]["revised_observations"] == 0
+    assert result["market_refresh"]["data_end"] == "2026-07"
     assert len(result["forecast"]) == 6
     assert result["backtest"]["winner"] in {
         "Referência sazonal",

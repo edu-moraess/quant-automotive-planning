@@ -50,6 +50,8 @@ RED = "#C43D3D"
 PURPLE = "#6959CD"
 MUTED = "#667085"
 GRID = "#E5EAF0"
+MARKET_CACHE_SCHEMA_VERSION = 2
+
 ENERGY_COLORS = {
     "Gasolina": "#577590",
     "Diesel": "#495867",
@@ -84,6 +86,8 @@ def load_model_artifacts(artifact_mtime: float) -> dict[str, pd.DataFrame | dict
 
 @st.cache_data(show_spinner=False)
 def run_market_cached(
+    cache_schema_version: int,
+    analysis_run_id: int,
     market_mtime: float,
     n_folds: int,
     test_size: int,
@@ -590,10 +594,11 @@ with st.sidebar:
         n_folds = st.slider("Dobras walk-forward", 2, 8, 4)
         test_size = st.slider("Meses por dobra", 3, 12, 6)
         allow_online = st.checkbox(
-            "Atualizar FRED online nesta execução",
+            "Consultar FRED online na próxima atualização",
             value=False,
-            help="Se falhar, a aplicação usa o snapshot versionado e informa o status.",
+            help="A consulta é aplicada somente ao pressionar Atualizar análise. Se a fonte falhar, o snapshot versionado é usado e o motivo é mostrado no painel.",
         )
+        st.caption("A opção só entra em vigor quando você pressiona **Atualizar análise** abaixo.")
         st.markdown("### Planejamento · ASSUMPTIONS")
         participation_pct = st.slider("Participação assumida", 1, 20, 8, 1, format="%d%%")
         capacity = st.number_input("Capacidade regular mensal", 10_000, 300_000, 110_000, 5_000)
@@ -607,7 +612,8 @@ with st.sidebar:
             backlog_cost = st.number_input("Backlog", 0, 200_000, 45_000, 500)
             safety_stock_penalty = st.number_input("Desvio de segurança", 0, 50_000, 1_000, 100)
             setup_cost = st.number_input("Setup mensal", 0, 1_000_000, 0, 5_000)
-        st.form_submit_button("Atualizar análise", use_container_width=True)
+        if st.form_submit_button("Atualizar análise", use_container_width=True):
+            st.session_state["market_analysis_run_id"] = st.session_state.get("market_analysis_run_id", 0) + 1
     st.markdown("---")
     st.markdown(f"[Mercado · FRED]({FRED_SERIES_URL})")
     st.markdown(f"[Produto · EPA]({EPA_DOWNLOAD_PAGE})")
@@ -633,6 +639,8 @@ energy_sensitivity = energy_price_sensitivity(filtered, energy_prices)
 try:
     with st.spinner("Executando mercado, forecast probabilístico e planejamento sob as hipóteses declaradas..."):
         market = run_market_cached(
+            MARKET_CACHE_SCHEMA_VERSION,
+            st.session_state.get("market_analysis_run_id", 0),
             MARKET_SNAPSHOT.stat().st_mtime,
             n_folds,
             test_size,
@@ -666,6 +674,12 @@ summary_display = summary.copy()
 winner_metrics = summary.loc[summary["modelo"].eq(winner)].iloc[0]
 base_scenario = scenarios.loc[scenarios["Cenário"] == "Base"].iloc[0]
 decision = production["decision"]
+market_refresh = market["market_refresh"]
+market_source_caption = (
+    f"Série FRED em uso: {market_refresh['source_label']} · "
+    f"{fmt_int(market_refresh['observations'])} observações · "
+    f"cobertura {market_refresh['data_start']}–{market_refresh['data_end']}."
+)
 
 st.markdown(
     """
@@ -681,6 +695,24 @@ st.markdown(
     '<div class="section-kicker">Universo completo</div><div class="section-title">Mercado, produto e energia sem reduzir a escala dos dados</div>',
     unsafe_allow_html=True,
 )
+if market_refresh["source_status"] == "ONLINE":
+    refreshed_at = pd.Timestamp(market_refresh["retrieved_at_utc"]).strftime("%d/%m/%Y %H:%M UTC")
+    variation = (
+        f"Foram incorporadas {fmt_int(market_refresh['new_observations'])} observações novas e "
+        f"{fmt_int(market_refresh['revised_observations'])} observações revisadas frente ao snapshot."
+        if market_refresh["new_observations"] or market_refresh["revised_observations"]
+        else "A fonte online coincide com o snapshot versionado; por isso os gráficos e métricas permanecem iguais."
+    )
+    st.markdown(
+        f'<div class="note"><strong>FRED online aplicado.</strong> {fmt_int(market_refresh["observations"])} observações, de {market_refresh["data_start"]} a {market_refresh["data_end"]}; consulta em {refreshed_at}. {variation} <strong>Esta atualização altera apenas Resumo, Mercado & Forecast e Planejamento.</strong> Portfólio, Energia & Combustível e Modelos integrados usam EPA, energia e artefatos próprios.</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    reason = market_refresh["fallback_reason"] or "Atualização online não solicitada nesta execução."
+    st.markdown(
+        f'<div class="note"><strong>Snapshot FRED aplicado.</strong> {fmt_int(market_refresh["observations"])} observações, de {market_refresh["data_start"]} a {market_refresh["data_end"]}. Motivo: {reason} <strong>Resumo, Mercado & Forecast e Planejamento compartilham esta mesma série.</strong></div>',
+        unsafe_allow_html=True,
+    )
 vertical_metric(
     "Configurações EPA no catálogo",
     fmt_int(metadata["observacoes"]),
@@ -708,6 +740,7 @@ tab_summary, tab_portfolio, tab_energy, tab_market, tab_models, tab_planning, ta
 
 with tab_summary:
     st.markdown("### Resumo executivo")
+    st.caption(market_source_caption)
     vertical_metric("Modelo de mercado", winner)
     vertical_metric("MAPE fora da amostra", f"{winner_metrics['mape_medio']:.2f}%")
     vertical_metric("Mix eletrificado no filtro", fmt_pct(kpis["eletrificados_pct"]))
@@ -952,6 +985,7 @@ with tab_energy:
 
 with tab_market:
     st.markdown("### Mercado agregado, validação temporal e incerteza")
+    st.caption(market_source_caption)
     vertical_metric("Modelo selecionado", winner)
     vertical_metric("MAPE médio", f"{winner_metrics['mape_medio']:.2f}%")
     vertical_metric("MAE médio", f"{winner_metrics['mae_medio']:.3f} milhões SAAR")
@@ -1134,6 +1168,11 @@ with tab_models:
 
 with tab_planning:
     st.markdown("### Capacidade, estoque e nível de serviço")
+    st.caption(
+        f"Demanda e plano derivados da série FRED em uso: {market_refresh['source_label']} · "
+        f"{fmt_int(market_refresh['observations'])} observações · "
+        f"cobertura {market_refresh['data_start']}–{market_refresh['data_end']}."
+    )
     vertical_metric("Demanda Base", fmt_int(base_scenario["Demanda total (veículos)"]))
     vertical_metric("Produção regular Base", fmt_int(base_scenario["Produção regular (veículos)"]))
     vertical_metric("Produção extra Base", fmt_int(base_scenario["Produção extra (veículos)"]))
