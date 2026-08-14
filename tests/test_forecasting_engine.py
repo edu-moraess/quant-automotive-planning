@@ -14,6 +14,13 @@ from analysis import (
     prequential_interval_quality,
     run_backtest,
 )
+from forecast_engine import (
+    PRIMARY_MODEL,
+    aggregate_horizon_metrics,
+    build_model_registry,
+    select_model_by_evidence,
+    walk_forward_by_horizon,
+)
 
 
 def _market_data() -> pd.DataFrame:
@@ -69,3 +76,30 @@ def test_probabilistic_forecast_is_reproducible_and_non_negative():
     assert np.all(first_simulations >= 0)
     assert np.all(first_forecast["p10"] <= first_forecast["p50"])
     assert np.all(first_forecast["p50"] <= first_forecast["p90"])
+
+
+def test_modular_forecast_registry_keeps_lagged_regression_as_primary():
+    registry = build_model_registry()
+    assert set(registry) == {PRIMARY_MODEL, "Seasonal Naive", "Holt-Winters", "AutoReg"}
+    assert registry[PRIMARY_MODEL].diagnostics()["role"] == "primary"
+
+
+def test_walk_forward_by_horizon_returns_model_horizon_contract():
+    results = walk_forward_by_horizon(_market_data(), horizons=(1, 3), n_origins=2)
+    assert {"model", "origin", "horizon", "RMSE", "MAE", "WAPE", "sMAPE", "MASE", "MAPE", "Bias"}.issubset(
+        results.columns
+    )
+    summary = aggregate_horizon_metrics(results)
+    assert set(summary["horizon"]) == {1, 3}
+    assert (summary["valid_origins"] == 2).all()
+
+
+def test_selection_prefers_primary_inside_mape_tolerance():
+    summary = pd.DataFrame(
+        {
+            "model": [PRIMARY_MODEL, "Holt-Winters"],
+            "MAPE": [3.00, 2.95],
+            "RMSE": [1.0, 0.9],
+        }
+    )
+    assert select_model_by_evidence(summary, tolerance_mape_pp=0.10) == PRIMARY_MODEL
