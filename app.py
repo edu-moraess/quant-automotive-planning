@@ -158,12 +158,12 @@ st.markdown(
       html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
       .stApp { background: #F6F8FB; }
       [data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid #E5EAF0; }
-      .block-container { max-width: 1120px; padding-top: 1.75rem; padding-bottom: 3rem; }
+      .block-container { max-width: 1120px; padding-top: 1.1rem; padding-bottom: 3rem; }
       h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; color: #14213D; letter-spacing: -0.025em; }
-      .hero { background: linear-gradient(112deg, #14213D 0%, #1F4E79 68%, #2D75B3 100%); border-radius: 16px; color: #fff; padding: 28px 34px; margin-bottom: 20px; box-shadow: 0 12px 28px rgba(20,33,61,.12); }
+      .hero { background: linear-gradient(112deg, #14213D 0%, #1F4E79 68%, #2D75B3 100%); border-radius: 14px; color: #fff; padding: 18px 24px; margin-bottom: 10px; box-shadow: 0 9px 22px rgba(20,33,61,.10); }
       .hero .eyebrow { font-size: .68rem; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; opacity: .78; margin-bottom: 8px; }
-      .hero h1 { color: #fff; margin: 0; font-size: 2rem; line-height: 1.1; }
-      .hero p { margin: 9px 0 0; color: rgba(255,255,255,.86); line-height: 1.52; max-width: 850px; }
+      .hero h1 { color: #fff; margin: 0; font-size: 1.55rem; line-height: 1.15; }
+      .hero p { margin: 6px 0 0; color: rgba(255,255,255,.86); line-height: 1.45; max-width: 850px; font-size: .92rem; }
       .section-kicker { color: #E87532; font-weight: 700; font-size: .7rem; letter-spacing: .13em; text-transform: uppercase; margin-top: 7px; }
       .section-title { font-family: 'Space Grotesk', sans-serif; color: #14213D; font-size: 1.35rem; font-weight: 700; margin: 4px 0 12px; }
       .insight { background: #FFFFFF; border: 1px solid #E5EAF0; border-left: 4px solid #E87532; border-radius: 10px; padding: 14px 17px; color: #344054; line-height: 1.55; margin: 12px 0 18px; }
@@ -715,40 +715,32 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-st.markdown(
-    '<div class="section-kicker">Universo completo</div><div class="section-title">Mercado, produto e energia sem reduzir a escala dos dados</div>',
-    unsafe_allow_html=True,
-)
 if market_refresh["source_status"] == "ONLINE":
-    refreshed_at = pd.Timestamp(market_refresh["retrieved_at_utc"]).strftime("%d/%m/%Y %H:%M UTC")
-    variation = (
-        f"Foram incorporadas {fmt_int(market_refresh['new_observations'])} observações novas e "
-        f"{fmt_int(market_refresh['revised_observations'])} observações revisadas frente ao snapshot."
-        if market_refresh["new_observations"] or market_refresh["revised_observations"]
-        else "A fonte online coincide com o snapshot versionado; por isso os gráficos e métricas permanecem iguais."
-    )
-    st.markdown(
-        f'<div class="note"><strong>FRED online aplicado.</strong> {fmt_int(market_refresh["observations"])} observações, de {market_refresh["data_start"]} a {market_refresh["data_end"]}; consulta em {refreshed_at}, concluída em {market_refresh["fetch_duration_seconds"]:.1f}s. {variation} <strong>Esta atualização altera apenas Resumo, Mercado & Forecast e Planejamento.</strong> Portfólio, Energia & Combustível e Modelos integrados usam EPA, energia e artefatos próprios.</div>',
-        unsafe_allow_html=True,
+    source_status = (
+        f"FRED · online · {fmt_int(market_refresh['observations'])} observações · "
+        f"{market_refresh['data_start']}–{market_refresh['data_end']}"
     )
 else:
-    reason = market_refresh["fallback_reason"] or "Atualização online não solicitada nesta execução."
-    st.markdown(
-        f'<div class="note"><strong>Snapshot FRED aplicado.</strong> {fmt_int(market_refresh["observations"])} observações, de {market_refresh["data_start"]} a {market_refresh["data_end"]}. Motivo: {reason} <strong>Resumo, Mercado & Forecast e Planejamento compartilham esta mesma série.</strong></div>',
-        unsafe_allow_html=True,
+    source_status = (
+        f"FRED · snapshot local · {fmt_int(market_refresh['observations'])} observações · "
+        f"{market_refresh['data_start']}–{market_refresh['data_end']}"
     )
-vertical_metric(
-    "Configurações EPA no catálogo",
-    fmt_int(metadata["observacoes"]),
-    f"{metadata['ano_inicial']}–{metadata['ano_final']} · universo completo",
-)
-vertical_metric("Marcas EPA no catálogo", fmt_int(metadata["marcas"]))
-vertical_metric("Modelos no catálogo", fmt_int(metadata["modelos"]))
-vertical_metric("Configurações no filtro aplicado", fmt_int(kpis["configuracoes"]))
-st.markdown(
-    f'<div class="insight"><strong>Leitura correta.</strong> O catálogo inteiro contém <strong>{fmt_int(metadata["observacoes"])} configurações</strong> entre {metadata["ano_inicial"]} e {metadata["ano_final"]}. O filtro atual cobre {selected_years[0]}–{selected_years[1]} e altera apenas a exploração visual. Mercado FRED, catálogo EPA e preços de energia são conectados por métodos compatíveis, sem inventar vendas por marca ou por veículo.</div>',
-    unsafe_allow_html=True,
-)
+with st.expander(source_status):
+    if market_refresh["source_status"] == "ONLINE":
+        refreshed_at = pd.Timestamp(market_refresh["retrieved_at_utc"]).strftime("%d/%m/%Y %H:%M UTC")
+        variation = (
+            f"{fmt_int(market_refresh['new_observations'])} observações novas e "
+            f"{fmt_int(market_refresh['revised_observations'])} revisadas frente ao snapshot."
+            if market_refresh["new_observations"] or market_refresh["revised_observations"]
+            else "A fonte online coincide com o snapshot; por isso os resultados permanecem iguais."
+        )
+        st.caption(
+            f"Consulta concluída em {market_refresh['fetch_duration_seconds']:.1f}s, às {refreshed_at}. {variation}"
+        )
+    else:
+        reason = market_refresh["fallback_reason"] or "Atualização online não solicitada nesta execução."
+        st.caption(f"Motivo do snapshot: {reason}")
+    st.caption("A série FRED alimenta Resumo, Mercado & Forecast e Planejamento.")
 
 tab_summary, tab_portfolio, tab_energy, tab_market, tab_models, tab_planning, tab_method = st.tabs(
     [
@@ -763,7 +755,20 @@ tab_summary, tab_portfolio, tab_energy, tab_market, tab_models, tab_planning, ta
 )
 
 with tab_summary:
-    st.markdown("### Resumo executivo")
+    st.markdown("### Universo e resumo executivo")
+    vertical_metric(
+        "Configurações EPA no catálogo",
+        fmt_int(metadata["observacoes"]),
+        f"{metadata['ano_inicial']}–{metadata['ano_final']} · universo completo",
+    )
+    vertical_metric("Marcas EPA no catálogo", fmt_int(metadata["marcas"]))
+    vertical_metric("Modelos no catálogo", fmt_int(metadata["modelos"]))
+    vertical_metric("Configurações no filtro aplicado", fmt_int(kpis["configuracoes"]))
+    st.markdown(
+        f'<div class="insight"><strong>Leitura correta.</strong> O catálogo contém <strong>{fmt_int(metadata["observacoes"])} configurações</strong> entre {metadata["ano_inicial"]} e {metadata["ano_final"]}. Os filtros alteram a exploração visual; não criam vendas por marca ou por veículo.</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("#### Mercado")
     st.caption(market_source_caption)
     vertical_metric("Modelo de mercado", winner)
     vertical_metric("MAPE fora da amostra", f"{winner_metrics['mape_medio']:.2f}%")
