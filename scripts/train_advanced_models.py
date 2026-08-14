@@ -1,4 +1,4 @@
-"""Treina e exporta os modelos avançados da plataforma a partir de dados versionados."""
+"""Treina os modelos usados nas análises do projeto."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Perfis de qualidade e proveniência para fontes públicas versionadas."""
+"""Funções para verificar a qualidade e a origem dos dados."""
 
 from __future__ import annotations
 

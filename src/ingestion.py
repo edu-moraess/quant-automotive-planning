@@ -1,4 +1,4 @@
-"""Ingestão resiliente de CSVs públicos com fallback e proveniência explícitos."""
+"""Funções para baixar CSVs públicos com alternativa local."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from config import SOURCES, SourceSettings
 
 
 class SourceUnavailable(RuntimeError):
-    """Indica indisponibilidade de fonte após tentativas controladas."""
+    """Sinaliza que a fonte não respondeu após as tentativas."""
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ def _validate_schema(frame: pd.DataFrame, expected_columns: Iterable[str], sourc
 def fetch_csv(
     url: str, expected_columns: Iterable[str], source_name: str, settings: SourceSettings = SOURCES
 ) -> IngestionResult:
-    """Baixa CSV com timeout e retry exponencial curto, sem mascarar schema inválido."""
+    """Baixa um CSV com prazo e novas tentativas."""
     last_error: Exception | None = None
     for attempt in range(1, settings.max_attempts + 1):
         try:
@@ -75,7 +75,7 @@ def load_csv_with_fallback(
     allow_online: bool,
     settings: SourceSettings = SOURCES,
 ) -> IngestionResult:
-    """Retorna fonte online quando solicitada; caso contrário, usa snapshot explicitamente."""
+    """Usa a fonte online quando solicitada; caso contrário, lê o arquivo local."""
     snapshot = Path(snapshot_path)
     if allow_online:
         try:
@@ -102,7 +102,7 @@ def load_csv_with_fallback(
 def fetch_monthly_fred_energy_series(
     series_id: str, output_column: str, settings: SourceSettings = SOURCES
 ) -> IngestionResult:
-    """Atualiza uma série FRED e harmoniza a observação para início do mês."""
+    """Atualiza a série de energia e ajusta as datas para o início do mês."""
     result = fetch_csv(
         settings.fred_energy_url(series_id), ["observation_date", series_id], f"FRED {series_id}", settings
     )

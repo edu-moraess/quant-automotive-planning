@@ -1,4 +1,4 @@
-"""Gera artefato versionável de saúde e proveniência dos datasets locais."""
+"""Monta um resumo de qualidade e origem dos dados locais."""
 
 from __future__ import annotations
 
