@@ -51,16 +51,30 @@ RED = "#C43D3D"
 PURPLE = "#6959CD"
 MUTED = "#667085"
 GRID = "#E5EAF0"
+
+# Paleta analítica: contraste elevado, semântica estável e exportação legível.
+CHART_BG = "#0B1220"
+CHART_SURFACE = "#111B2E"
+CHART_TEXT = "#E7EEF8"
+CHART_MUTED = "#9AABC1"
+CHART_GRID = "#2A3950"
+CHART_BORDER = "#314158"
+HISTORY = "#A7B5C8"
+ACCENT = "#38BDF8"
+SIGNAL = "#2DD4BF"
+ALERT = "#F2B85B"
+RISK = "#FB7185"
+PURPLE_SIGNAL = "#A78BFA"
 MARKET_SOURCE_CACHE_SCHEMA_VERSION = 1
 
 ENERGY_COLORS = {
-    "Gasolina": "#577590",
-    "Diesel": "#495867",
-    "Eletricidade": "#6A5ACD",
-    "Híbrido plug-in": "#00A6A6",
-    "Etanol / E85": "#D68C45",
-    "Gás natural": "#8AB17D",
-    "Hidrogênio": "#2F75B5",
+    "Gasolina": "#7E8DA4",
+    "Diesel": "#A7B5C8",
+    "Eletricidade": ACCENT,
+    "Híbrido plug-in": SIGNAL,
+    "Etanol / E85": ALERT,
+    "Gás natural": "#72D2A5",
+    "Hidrogênio": PURPLE_SIGNAL,
 }
 
 
@@ -150,6 +164,7 @@ PLOT_CONFIG = {
     "displayModeBar": "hover",
     "scrollZoom": False,
     "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d", "toggleSpikelines"],
+    "toImageButtonOptions": {"format": "png", "filename": "quant-automotive-analysis", "scale": 2},
 }
 
 st.markdown(
@@ -180,6 +195,8 @@ st.markdown(
       .stTabs [data-baseweb="tab-list"] { gap: 3px; border-bottom: 1px solid #DCE3EA; overflow-x: auto; }
       .stTabs [data-baseweb="tab"] { min-height: 45px; padding: 0 11px; color: #667085; font-weight: 600; font-size: .85rem; }
       .stTabs [aria-selected="true"] { color: #14213D; border-bottom-color: #E87532; }
+      div[data-testid="stPlotlyChart"] { background: #0B1220; border: 1px solid #D9E2EC; border-radius: 7px; overflow: hidden; box-shadow: 0 10px 24px rgba(15, 23, 42, .10); margin: 10px 0 22px; }
+      div[data-testid="stPlotlyChart"] > div { border-radius: 6px; }
       /* Controles Plotly: ficam invisíveis até o hover, verticais, transparentes e fora das legendas. */
       .js-plotly-plot .plotly .modebar { display: flex !important; flex-direction: column !important; gap: 1px !important; background: transparent !important; top: 58px !important; right: 6px !important; left: auto !important; }
       .js-plotly-plot .plotly .modebar-group { display: flex !important; flex-direction: column !important; background: transparent !important; margin: 0 !important; }
@@ -228,17 +245,60 @@ def compact_fact(label: str, value: str, detail: str | None = None) -> None:
 def style_chart(fig: go.Figure, height: int = 420, legend: bool = True) -> go.Figure:
     fig.update_layout(
         height=height,
-        template="plotly_white",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#FFFFFF",
-        font={"family": "DM Sans, sans-serif", "color": PRIMARY},
-        margin={"l": 16, "r": 24, "t": 54, "b": 58},
+        template="plotly_dark",
+        paper_bgcolor=CHART_BG,
+        plot_bgcolor=CHART_BG,
+        font={"family": "DM Sans, sans-serif", "color": CHART_TEXT, "size": 12},
+        title={
+            "x": 0,
+            "xanchor": "left",
+            "font": {"family": "Space Grotesk, sans-serif", "size": 15, "color": CHART_TEXT},
+        },
+        margin={"l": 52, "r": 34, "t": 74, "b": 62},
         showlegend=legend,
-        legend={"orientation": "h", "y": -0.22, "x": 0, "font": {"size": 11}},
-        hoverlabel={"font": {"family": "DM Sans, sans-serif"}},
+        legend={
+            "orientation": "h",
+            "y": 1.12,
+            "x": 0,
+            "xanchor": "left",
+            "bgcolor": "rgba(0,0,0,0)",
+            "font": {"size": 10, "color": CHART_MUTED},
+            "groupclick": "toggleitem",
+        },
+        hovermode="x unified",
+        hoverlabel={
+            "bgcolor": CHART_SURFACE,
+            "bordercolor": CHART_BORDER,
+            "font": {"family": "DM Sans, sans-serif", "color": CHART_TEXT, "size": 11},
+        },
     )
-    fig.update_xaxes(showgrid=False, linecolor=GRID)
-    fig.update_yaxes(gridcolor=GRID, zerolinecolor=GRID)
+    fig.update_xaxes(
+        showgrid=False,
+        showline=True,
+        linecolor=CHART_BORDER,
+        tickfont={"color": CHART_MUTED, "size": 10},
+        title_font={"color": CHART_MUTED, "size": 11},
+        zeroline=False,
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor=CHART_GRID,
+        griddash="dot",
+        showline=True,
+        linecolor=CHART_BORDER,
+        tickfont={"color": CHART_MUTED, "size": 10},
+        title_font={"color": CHART_MUTED, "size": 11},
+        zerolinecolor=CHART_BORDER,
+    )
+    fig.update_coloraxes(
+        colorbar={
+            "bgcolor": "rgba(0,0,0,0)",
+            "outlinecolor": CHART_BORDER,
+            "tickfont": {"color": CHART_MUTED, "size": 10},
+            "title": {"font": {"color": CHART_MUTED, "size": 10}},
+        }
+    )
+    fig.update_annotations(font={"family": "Space Grotesk, sans-serif", "color": CHART_TEXT, "size": 12})
     return fig
 
 
@@ -251,7 +311,7 @@ def forecast_chart(history: pd.DataFrame, forecast: pd.DataFrame, winner: str) -
             y=recent["vendas_saar_milhoes"],
             mode="lines",
             name="Histórico",
-            line={"color": BLUE, "width": 2.25},
+            line={"color": HISTORY, "width": 2.25},
         )
     )
     fig.add_trace(
@@ -260,7 +320,7 @@ def forecast_chart(history: pd.DataFrame, forecast: pd.DataFrame, winner: str) -
             y=forecast["cenario_conservador"],
             mode="lines",
             name="Faixa p10–p90",
-            line={"color": "rgba(232,117,50,.26)", "width": 1},
+            line={"color": "rgba(56,189,248,.38)", "width": 1},
         )
     )
     fig.add_trace(
@@ -269,8 +329,8 @@ def forecast_chart(history: pd.DataFrame, forecast: pd.DataFrame, winner: str) -
             y=forecast["cenario_otimista"],
             mode="lines",
             fill="tonexty",
-            fillcolor="rgba(232,117,50,.17)",
-            line={"color": "rgba(232,117,50,.26)", "width": 1},
+            fillcolor="rgba(56,189,248,.18)",
+            line={"color": "rgba(56,189,248,.38)", "width": 1},
             showlegend=False,
         )
     )
@@ -280,11 +340,11 @@ def forecast_chart(history: pd.DataFrame, forecast: pd.DataFrame, winner: str) -
             y=forecast["cenario_base"],
             mode="lines+markers",
             name="Projeção base",
-            line={"color": ORANGE, "width": 2.6},
+            line={"color": ACCENT, "width": 2.6},
             marker={"size": 5},
         )
     )
-    fig.add_vline(x=history["data"].max(), line_dash="dot", line_color=PRIMARY, line_width=1)
+    fig.add_vline(x=history["data"].max(), line_dash="dot", line_color=CHART_MUTED, line_width=1)
     fig.update_layout(title=f"Projeção de mercado · {winner}", yaxis_title="Milhões de unidades SAAR")
     return style_chart(fig, 430)
 
@@ -297,7 +357,7 @@ def brand_bar_chart(summary: pd.DataFrame) -> go.Figure:
         y="make",
         orientation="h",
         color="mpg_medio",
-        color_continuous_scale=["#BFD3E6", BLUE, ORANGE],
+        color_continuous_scale=["#23334A", "#2A719F", ACCENT],
         labels={"make": "Marca EPA", "configuracoes": "Configurações", "mpg_medio": "MPG/MPGe médio"},
         title="Amplitude de portfólio no universo filtrado",
     )
@@ -326,7 +386,7 @@ def brand_position_chart(summary: pd.DataFrame) -> go.Figure:
             "mpg_medio": ":.1f",
             "participacao_eletrificada_pct": ":.1f",
         },
-        color_continuous_scale=["#C8D8E8", TEAL, PURPLE],
+        color_continuous_scale=["#203047", SIGNAL, PURPLE_SIGNAL],
         labels={
             "co2_medio_g_milha": "CO₂ de escapamento (g/mi)",
             "mpg_medio": "MPG/MPGe médio",
@@ -334,7 +394,7 @@ def brand_position_chart(summary: pd.DataFrame) -> go.Figure:
         },
         title="Posicionamento técnico por marca",
     )
-    fig.update_traces(marker={"opacity": 0.78, "line": {"color": "white", "width": 0.5}})
+    fig.update_traces(marker={"opacity": 0.82, "line": {"color": CHART_BG, "width": 0.7}})
     return style_chart(fig, 500, legend=False)
 
 
@@ -346,7 +406,7 @@ def segment_chart(summary: pd.DataFrame) -> go.Figure:
         y="VClass",
         orientation="h",
         color="co2_medio_g_milha",
-        color_continuous_scale="YlOrRd",
+        color_continuous_scale=["#203047", "#87643E", ALERT, RISK],
         labels={"VClass": "Segmento EPA", "mpg_medio": "MPG/MPGe médio", "co2_medio_g_milha": "CO₂ (g/mi)"},
         title="Eficiência por segmento",
     )
@@ -367,7 +427,7 @@ def price_index_chart(index_data: pd.DataFrame) -> go.Figure:
         labels={"data": "Data", "indice_base_100": "Índice (início = 100)", "energia": "Energia"},
         title="Variação relativa de preços de energia · últimos 48 meses",
     )
-    fig.add_hline(y=100, line_dash="dot", line_color=MUTED, line_width=1)
+    fig.add_hline(y=100, line_dash="dot", line_color=CHART_MUTED, line_width=1)
     fig.update_traces(line={"width": 2.2})
     return style_chart(fig, 440)
 
@@ -400,11 +460,11 @@ def correlation_chart(correlations: pd.DataFrame) -> go.Figure:
             y=labels,
             zmin=-1,
             zmax=1,
-            colorscale=[[0, "#C43D3D"], [0.5, "#F4F6F8"], [1, "#1F4E79"]],
+            colorscale=[[0, RISK], [0.5, "#152238"], [1, ACCENT]],
             colorbar={"title": "ρ"},
             text=np.round(correlations.values, 2),
             texttemplate="%{text}",
-            textfont={"size": 11},
+            textfont={"size": 11, "color": CHART_TEXT},
             hovertemplate="%{x}<br>%{y}<br>ρ Spearman: %{z:.2f}<extra></extra>",
         )
     )
@@ -425,13 +485,13 @@ def history_chart(data: pd.DataFrame) -> go.Figure:
         labels={"data": "Data", "vendas_saar_milhoes": "Milhões SAAR"},
         title=f"Mercado agregado de veículos leves · histórico até {data_end:%b/%Y}",
     )
-    fig.update_traces(line={"color": BLUE, "width": 2.25})
+    fig.update_traces(line={"color": HISTORY, "width": 2.25})
     fig.update_xaxes(range=[data_start, data_end], tickmode="array", tickvals=tick_values, ticktext=tick_labels)
     return style_chart(fig, 440, legend=False)
 
 
 def backtest_chart(summary: pd.DataFrame, winner: str) -> go.Figure:
-    colors = [ORANGE if value == winner else "#B8C2D1" for value in summary["modelo"]]
+    colors = [ACCENT if value == winner else "#3A4A60" for value in summary["modelo"]]
     fig = go.Figure(
         go.Bar(
             x=summary["modelo"],
@@ -453,8 +513,8 @@ def residual_chart(residuals: np.ndarray) -> go.Figure:
         labels={"x": "Resíduo (milhões SAAR)", "count": "Frequência"},
         title="Distribuição dos resíduos fora da amostra",
     )
-    fig.update_traces(marker_color=TEAL, marker_line_color="white", marker_line_width=1)
-    fig.add_vline(x=0, line_color=PRIMARY, line_width=1)
+    fig.update_traces(marker_color=SIGNAL, marker_line_color=CHART_BG, marker_line_width=1)
+    fig.add_vline(x=0, line_color=CHART_MUTED, line_width=1)
     return style_chart(fig, 360, legend=False)
 
 
@@ -463,8 +523,8 @@ def acf_chart(values: pd.DataFrame) -> go.Figure:
     fig = px.bar(
         display, x="lag", y="acf", labels={"lag": "Defasagem", "acf": "Autocorrelação"}, title="ACF dos resíduos"
     )
-    fig.update_traces(marker_color=TEAL)
-    fig.add_hline(y=0, line_color=PRIMARY, line_width=1)
+    fig.update_traces(marker_color=SIGNAL)
+    fig.add_hline(y=0, line_color=CHART_MUTED, line_width=1)
     return style_chart(fig, 360, legend=False)
 
 
@@ -477,7 +537,7 @@ def production_chart(plan: pd.DataFrame, capacity: int) -> go.Figure:
         subplot_titles=["Demanda de referência e produção", "Estoque e demanda pendente"],
     )
     fig.add_trace(
-        go.Bar(x=plan["data"], y=plan["demanda_planejada_veiculos"], name="Demanda", marker_color="#BFD3E6"),
+        go.Bar(x=plan["data"], y=plan["demanda_planejada_veiculos"], name="Demanda", marker_color="#30425E"),
         row=1,
         col=1,
     )
@@ -487,19 +547,19 @@ def production_chart(plan: pd.DataFrame, capacity: int) -> go.Figure:
             y=plan["producao_recomendada"],
             name="Produção",
             mode="lines+markers",
-            line={"color": ORANGE, "width": 2.4},
+            line={"color": ACCENT, "width": 2.4},
         ),
         row=1,
         col=1,
     )
-    fig.add_hline(y=capacity, line_dash="dash", line_color=PRIMARY, row=1, col=1)
+    fig.add_hline(y=capacity, line_dash="dash", line_color=ALERT, row=1, col=1)
     fig.add_trace(
         go.Scatter(
             x=plan["data"],
             y=plan["estoque_final"],
             name="Estoque",
             mode="lines+markers",
-            line={"color": BLUE, "width": 2},
+            line={"color": SIGNAL, "width": 2},
         ),
         row=2,
         col=1,
@@ -510,7 +570,7 @@ def production_chart(plan: pd.DataFrame, capacity: int) -> go.Figure:
             y=plan["demanda_pendente"],
             name="Pendente",
             mode="lines+markers",
-            line={"color": RED, "width": 2, "dash": "dot"},
+            line={"color": RISK, "width": 2, "dash": "dot"},
         ),
         row=2,
         col=1,
@@ -529,11 +589,11 @@ def sensitivity_chart(sensitivity: pd.DataFrame) -> go.Figure:
         display,
         text_auto=".0f",
         aspect="auto",
-        color_continuous_scale="YlOrRd",
+        color_continuous_scale=["#203047", "#87643E", ALERT, RISK],
         labels={"x": "Participação de mercado", "y": "Capacidade mensal", "color": "Backlog"},
         title="Sensibilidade do backlog acumulado",
     )
-    fig.update_traces(textfont={"size": 11})
+    fig.update_traces(textfont={"size": 11, "color": CHART_TEXT})
     return style_chart(fig, 410, legend=False)
 
 
@@ -545,7 +605,7 @@ def econometric_validation_chart(validation: pd.DataFrame) -> go.Figure:
             y=validation["vendas_saar_milhoes"],
             mode="lines+markers",
             name="Observado",
-            line={"color": BLUE, "width": 2.4},
+            line={"color": HISTORY, "width": 2.4},
         )
     )
     fig.add_trace(
@@ -554,7 +614,7 @@ def econometric_validation_chart(validation: pd.DataFrame) -> go.Figure:
             y=validation["previsto_ols"],
             mode="lines+markers",
             name="OLS com energia",
-            line={"color": ORANGE, "width": 2.4, "dash": "dash"},
+            line={"color": ACCENT, "width": 2.4, "dash": "dash"},
         )
     )
     fig.update_layout(title="Validação temporal do modelo econométrico", yaxis_title="Milhões de unidades SAAR")
@@ -567,7 +627,7 @@ def neural_validation_chart(validation: pd.DataFrame) -> go.Figure:
         x="comb08",
         y="previsto_mlp",
         color="erro_abs",
-        color_continuous_scale="YlOrRd",
+        color_continuous_scale=["#203047", "#87643E", ALERT, RISK],
         opacity=0.55,
         labels={
             "comb08": "Eficiência EPA observada (MPG/MPGe)",
@@ -583,7 +643,7 @@ def neural_validation_chart(validation: pd.DataFrame) -> go.Figure:
             y=[0, maximum],
             mode="lines",
             name="Previsão perfeita",
-            line={"color": PRIMARY, "dash": "dot"},
+            line={"color": CHART_MUTED, "dash": "dot"},
         )
     )
     fig.update_traces(marker={"size": 6})
