@@ -2,7 +2,7 @@
 
 A **Quant Automotive Intelligence & Planning** é uma plataforma Streamlit para análise integrada de mercado, produto, energia, modelagem e planejamento operacional no setor automotivo. O projeto transforma fontes públicas rastreáveis em uma leitura quantitativa sequencial, com separação explícita entre fatos observados, modelos estimados e hipóteses operacionais.
 
-A plataforma integra a série mensal agregada `TOTALSA` do FRED, o catálogo público da U.S. Environmental Protection Agency (EPA) e séries observadas de preços de gasolina, diesel e eletricidade da EIA/FRED/BLS. Ela utiliza *snapshots* versionados, validação de esquema, proveniência e contingência local para preservar reprodutibilidade mesmo quando uma fonte externa está indisponível.
+A plataforma integra a série mensal agregada `TOTALSA` do FRED, o catálogo público da U.S. Environmental Protection Agency (EPA) e séries observadas de preços de gasolina, diesel e eletricidade da EIA/FRED/BLS. Ela utiliza *snapshots* versionados, contratos point-in-time, validação de esquema, hash de versão, monitoramento de frescor, proveniência e contingência local para preservar reprodutibilidade mesmo quando uma fonte externa está indisponível.
 
 > **Limite de interpretação.** O FRED mede o mercado agregado de veículos leves dos Estados Unidos; não contém vendas por marca. A EPA descreve configurações técnicas de produto; não contém participação de mercado, unidades vendidas ou rentabilidade. A interface preserva essa separação e não cria inferências por marca, modelo ou combustível que os dados não suportam.
 
@@ -13,10 +13,12 @@ A plataforma integra a série mensal agregada `TOTALSA` do FRED, o catálogo pú
 | **Resumo** | Cobertura do universo completo, leitura da composição de produto, intervalo preditivo e distinção entre dado observado e cenário. |
 | **Portfólio EPA** | Análise por marca, modelo, segmento e tecnologia; posicionamento de eficiência e emissões; auditoria temporal do campo `make`. |
 | **Energia & combustível** | Séries reais de energia, custo de referência por 100 milhas, sensibilidade a choques de preço, correlação de Spearman e comparação tecnológica controlada. |
-| **Mercado & forecast** | Diagnósticos temporais, *backtest* walk-forward, comparação de quatro modelos, métricas múltiplas e intervalo empírico p10–p90. |
-| **Modelos integrados** | OLS temporal com diagnóstico de VIF, Durbin–Watson e Breusch–Pagan; MLP de eficiência com validação temporal, importância por permutação e erro por propulsão. |
-| **Planejamento** | Programação linear com capacidade regular e extra, estoque inicial e de segurança, backlog, setup, custo e cenários Downside/Base/Upside/Stress. |
-| **Método & dados** | Saúde e proveniência de snapshots, fórmulas, escopo, limitações e documentação técnica. |
+| **Mercado & forecast** | Forecast Engine modular com regressão de defasagens como modelo principal, benchmarks, walk-forward por horizonte, seleção de lags OOS e intervalos calibrados por resíduos OOS. |
+| **Modelos integrados** | OLS temporal com diagnóstico de VIF, Durbin–Watson, Ljung–Box, ARCH, Breusch–Pagan e Jarque–Bera; MLP de eficiência com validação temporal. |
+| **Risco & cenários** | Monte Carlo reprodutível, stockout probability, backlog risk, capacity-at-risk, VaR, CVaR, cenários parametrizados e sensibilidade com status de transmissão. |
+| **Planejamento** | Programação linear com capacidade regular e extra, estoque inicial e de segurança, backlog, setup, custo e otimização PuLP por caminhos amostrados. |
+| **Decisão** | Sinais green/amber/red/unavailable, confiança de disponibilidade das evidências, ações condicionais e limitações explícitas. |
+| **Método & dados** | Saúde e proveniência de snapshots, contratos point-in-time, schema drift, staleness, fórmulas, escopo e limitações. |
 
 ## Fontes de dados
 
@@ -33,9 +35,9 @@ Os dados locais em `data/` preservam os *snapshots* utilizados. O artefato `data
 
 ### Mercado e forecast probabilístico
 
-O motor de mercado valida esquema e frequência, consolida a série em base mensal e executa diagnósticos de estacionariedade, decomposição STL e autocorrelação. Quatro candidatos são comparados em validação temporal *walk-forward*: **referência sazonal**, **Holt–Winters aditivo**, **Ridge com defasagens** e **AutoReg sazonal**. Cada dobra é avaliada por MAPE, sMAPE, WAPE, MASE e RMSE; a seleção é feita com a métrica configurada de forma explícita. A qualidade dos intervalos p10–p90 é reportada de forma *prequential*: cada dobra pontuada usa exclusivamente resíduos de dobras anteriores, sem avaliar o passado com informação futura.
+O motor de mercado valida esquema e frequência, consolida a série em base mensal e executa diagnósticos de estacionariedade, decomposição STL e autocorrelação. O `src/forecast_engine.py` formaliza o contrato `fit/predict/forecast/evaluate/diagnostics`, mantém a **regressão de defasagens** como candidato principal e compara Seasonal Naive, Holt–Winters e AutoReg como benchmarks. O walk-forward por horizonte cobre 1, 3, 6 e 12 meses; conjuntos de lags são comparados por erro fora da amostra, nunca por R² de treino. A seleção pode priorizar a regressão principal somente quando seu MAPE estiver dentro da tolerância declarada.
 
-O modelo escolhido é reajustado sobre o histórico. Seus erros fora da amostra alimentam reamostragem *bootstrap* iid ou em blocos móveis, conforme configuração, para construir cenários probabilísticos p10, p50 e p90. Portanto, o intervalo representa incerteza empírica de previsão, e não um limite causal ou garantia operacional.
+O modelo escolhido é reajustado sobre o histórico. O módulo `probabilistic_forecast.py` compara Normal, Student-t, bootstrap iid e moving block usando coverage e Pinball Loss em calibração prequential. Somente resíduos de dobras anteriores à dobra avaliada entram na calibração. O método, seed, origem dos resíduos, horizonte, período de treino e métricas de validação são persistidos nos metadados do forecast. O intervalo representa incerteza empírica de previsão, e não um limite causal ou garantia operacional.
 
 ### Produto, tecnologia e energia
 
@@ -62,12 +64,19 @@ O planejamento resolve um problema linear com PuLP/CBC. Participação assumida,
 │   ├── config.py                            # Dataclasses imutáveis de fontes, forecast e planejamento
 │   ├── ingestion.py                         # Timeout, retry, validação e fallback local
 │   ├── data_quality.py                      # Perfis, hashes e saúde de snapshots
-│   ├── analysis.py                          # Mercado, backtest, forecast e diagnóstico temporal
+│   ├── analysis.py                          # Compatibilidade do pipeline de mercado e planejamento
+│   ├── forecast_engine.py                   # Contrato modular, benchmarks e walk-forward por horizonte
+│   ├── probabilistic_forecast.py            # Resíduos OOS, calibração e intervalos probabilísticos
+│   ├── econometric_diagnostics.py           # Diagnósticos econométricos consolidados
 │   ├── planning.py                          # Programação linear de produção, estoque e backlog
-│   ├── scenarios.py                         # Cenários de demanda e sensibilidade de energia
+│   ├── robust_planning.py                   # PuLP por caminhos Monte Carlo e planos representativos
+│   ├── risk_engine.py                       # Monte Carlo, stockout, VaR, CVaR e capacity-at-risk
+│   ├── scenario_engine.py                   # Market share, cenários e sensibilidade parametrizados
+│   ├── decision_intelligence.py             # Sinais, confiança, ações e limitações quantitativas
+│   ├── scenarios.py                         # Compatibilidade de cenários legados e energia
 │   ├── vehicle_intelligence.py              # Catálogo EPA, propulsão, marca, segmento e produto
 │   ├── energy_intelligence.py               # Séries de energia, custo por 100 mi e Spearman
-│   └── advanced_models.py                   # OLS temporal, diagnósticos e MLP de eficiência
+│   └── advanced_models.py                   # OLS temporal legado, diagnósticos e MLP de eficiência
 ├── data/
 │   ├── TOTALSA_snapshot.csv                 # Snapshot FRED de contingência
 │   ├── EPA_vehicles_snapshot.csv            # Snapshot EPA por configuração
@@ -77,7 +86,8 @@ O planejamento resolve um problema linear com PuLP/CBC. Participação assumida,
 ├── scripts/
 │   ├── fetch_energy_prices.py                # Atualização reprodutível de energia
 │   ├── build_data_health.py                  # Geração do perfil de saúde dos snapshots
-│   └── train_advanced_models.py              # Reexecução de OLS e rede neural
+│   ├── train_advanced_models.py              # Reexecução de OLS e rede neural
+│   └── evaluate_risk_engine.py               # Avaliação reproduzível com snapshot FRED real
 ├── tests/                                   # Testes unitários e de integração
 ├── docs/                                    # Arquitetura, diagnóstico, auditorias e referências
 ├── pyproject.toml                           # Configuração Ruff
@@ -85,7 +95,7 @@ O planejamento resolve um problema linear com PuLP/CBC. Participação assumida,
 └── docs/ci/quality.yml                      # Template GitHub Actions de qualidade
 ```
 
-A arquitetura detalhada está em [`docs/ARQUITETURA_ALVO.md`](docs/ARQUITETURA_ALVO.md); o diagnóstico da versão de origem, em [`docs/DIAGNOSTICO_TECNICO_INICIAL.md`](docs/DIAGNOSTICO_TECNICO_INICIAL.md). A evolução arquitetural seletiva orientada por padrões do ETIL está registrada em [`docs/RELATORIO_EVOLUCAO_ETIL.md`](docs/RELATORIO_EVOLUCAO_ETIL.md).
+A arquitetura detalhada está em [`docs/ARQUITETURA_ALVO.md`](docs/ARQUITETURA_ALVO.md); o diagnóstico da versão de origem, em [`docs/DIAGNOSTICO_TECNICO_INICIAL.md`](docs/DIAGNOSTICO_TECNICO_INICIAL.md). A evolução arquitetural seletiva orientada por padrões do ETIL está registrada em [`docs/RELATORIO_EVOLUCAO_ETIL.md`](docs/RELATORIO_EVOLUCAO_ETIL.md). A governança de risco e decisão está em [`docs/DECISION_INTELLIGENCE.md`](docs/DECISION_INTELLIGENCE.md), e a auditoria da evolução v2 em [`docs/AUDITORIA_EVOLUCAO_V2.md`](docs/AUDITORIA_EVOLUCAO_V2.md).
 
 ## Execução local
 
@@ -111,6 +121,9 @@ python scripts/build_data_health.py
 
 # Reexecuta OLS temporal e a rede neural com os snapshots locais.
 python scripts/train_advanced_models.py
+
+# Avalia risco Monte Carlo e imprime VaR/CVaR sobre o snapshot FRED local.
+python scripts/evaluate_risk_engine.py
 ```
 
 A ingestão utiliza timeout, tentativas com espera exponencial, validação de esquema e *fallback* local. O painel apresenta o status da fonte utilizada, evitando que uma indisponibilidade de rede silenciosamente altere a origem dos resultados.
@@ -124,7 +137,7 @@ ruff format --check .
 pytest -q
 ```
 
-O projeto possui testes de ingestão e qualidade, forecast, planejamento, cenários, integração, catálogo EPA, energia e modelos avançados. O template de CI está em `docs/ci/quality.yml`; para ativá-lo, copie o arquivo para `.github/workflows/quality.yml` em um *commit* autorizado a criar ou atualizar *workflows* no GitHub.
+O projeto possui **79 testes aprovados** cobrindo ingestão, governança temporal, schema drift, forecast, walk-forward por horizonte, calibração probabilística, diagnósticos econométricos, planejamento, cenários, risco Monte Carlo, otimização robusta, Decision Intelligence, integração, catálogo EPA, energia e modelos avançados. O template de CI está em `docs/ci/quality.yml`; para ativá-lo, copie o arquivo para `.github/workflows/quality.yml` em um *commit* autorizado a criar ou atualizar *workflows* no GitHub.
 
 ## Referências
 
