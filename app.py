@@ -19,6 +19,7 @@ import analysis as analysis_module  # noqa: E402
 import energy_intelligence as energy_module  # noqa: E402
 import vehicle_intelligence as vehicle_module  # noqa: E402
 from config import ENERGY_SNAPSHOT, EPA_SNAPSHOT, MARKET_SNAPSHOT, MODEL_ARTIFACTS_DIR  # noqa: E402
+from presentation import fmt_month_display, format_temporal_display  # noqa: E402
 from scenarios import energy_price_sensitivity  # noqa: E402
 
 FRED_SERIES_URL = analysis_module.FRED_SERIES_URL
@@ -899,9 +900,9 @@ with tab_energy:
     gasoline = latest_map["Gasolina regular"]
     diesel = latest_map["Diesel"]
     electricity = latest_map["Eletricidade"]
-    vertical_metric("Gasolina regular", fmt_usd(gasoline["preco"], 3) + "/gal", gasoline["data"].strftime("%m/%Y"))
-    vertical_metric("Diesel", fmt_usd(diesel["preco"], 3) + "/gal", diesel["data"].strftime("%m/%Y"))
-    vertical_metric("Eletricidade", fmt_usd(electricity["preco"], 3) + "/kWh", electricity["data"].strftime("%m/%Y"))
+    vertical_metric("Gasolina regular", fmt_usd(gasoline["preco"], 3) + "/gal", fmt_month_display(gasoline["data"]))
+    vertical_metric("Diesel", fmt_usd(diesel["preco"], 3) + "/gal", fmt_month_display(diesel["data"]))
+    vertical_metric("Eletricidade", fmt_usd(electricity["preco"], 3) + "/kWh", fmt_month_display(electricity["data"]))
     vertical_metric(
         "Configurações comparáveis para custo por 100 milhas",
         fmt_int(int(filtered["custo_energia_100mi_usd"].notna().sum())),
@@ -1314,6 +1315,7 @@ with tab_planning:
                 "Utilização regular (%)",
             ]
         ]
+        plan_display = format_temporal_display(plan_display, monthly_columns=["Data"])
         st.dataframe(
             plan_display.style.format(
                 {
@@ -1374,6 +1376,11 @@ with tab_method:
             "snapshot_sha256": "SHA-256",
             "notes": "Notas",
         }
+    )
+    health_display = format_temporal_display(
+        health_display,
+        daily_columns=["Início", "Fim", "Última observação"],
+        utc_columns=["Snapshot modificado (UTC)"],
     )
     health_columns = [
         "Dataset",
