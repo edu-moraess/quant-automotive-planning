@@ -1,6 +1,13 @@
 import pandas as pd
 import pytest
 
+from data.governance import (
+    SchemaContractError,
+    assess_schema,
+    canonical_time_series,
+    compute_dataset_version,
+    staleness,
+)
 from data_quality import profile_time_series, profile_vehicle_catalog
 from energy_intelligence import load_energy_prices
 from ingestion import SourceUnavailable, load_csv_with_fallback
@@ -85,3 +92,45 @@ def test_vehicle_profile_marks_invalid_records(tmp_path):
     health = profile_vehicle_catalog(frame, "SNAPSHOT", source)
     assert health.invalid_rows == 1
     assert health.rows == 2
+
+
+def test_governance_detects_strict_schema_drift():
+    frame = pd.DataFrame({"date": ["2024-01-01"], "value": [1.0], "legacy": ["x"]})
+    assessment = assess_schema(frame, ["date", "value"], expected_columns=["date", "value"])
+    assert assessment.status == "drift"
+    assert assessment.unexpected == ("legacy",)
+
+
+def test_governance_version_is_reproducible():
+    frame = pd.DataFrame({"date": ["2024-01-01", "2024-02-01"], "value": [1.0, 2.0]})
+    first = compute_dataset_version(frame, source="test", frequency="monthly")
+    second = compute_dataset_version(frame.copy(), source="test", frequency="monthly")
+    assert first == second
+    canonical = canonical_time_series(
+        frame,
+        date_column="date",
+        value_column="value",
+        source="test",
+        frequency="monthly",
+        retrieved_at="2024-03-01T00:00:00Z",
+        dataset_version=first,
+    )
+    assert {"date", "value", "source", "frequency", "retrieved_at", "dataset_version"}.issubset(canonical.columns)
+
+
+def test_governance_staleness_is_explicit():
+    stale, age = staleness("2024-01-01", as_of="2024-01-31", max_age_days=15)
+    assert stale is True
+    assert age is not None and age > 15
+
+
+def test_canonical_series_rejects_missing_required_column():
+    with pytest.raises(SchemaContractError, match="colunas ausentes"):
+        canonical_time_series(
+            pd.DataFrame({"date": ["2024-01-01"]}),
+            date_column="date",
+            value_column="value",
+            source="test",
+            frequency="monthly",
+            retrieved_at="2024-03-01T00:00:00Z",
+        )

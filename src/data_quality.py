@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from data.governance import assess_schema, compute_dataset_version, staleness
+
 
 @dataclass(frozen=True)
 class DatasetHealth:
@@ -30,6 +32,12 @@ class DatasetHealth:
     snapshot_sha256: str | None
     snapshot_modified_utc: str | None
     notes: str
+    dataset_version: str | None = None
+    schema_status: str = "not_checked"
+    schema_missing_columns: tuple[str, ...] = ()
+    schema_unexpected_columns: tuple[str, ...] = ()
+    stale: bool | None = None
+    staleness_days: float | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -79,18 +87,31 @@ def profile_time_series(
     source_status: str,
     snapshot_path: str | Path | None,
     notes: str,
+    *,
+    expected_columns: Iterable[str] | None = None,
+    max_staleness_days: float | None = None,
+    as_of: object | None = None,
 ) -> DatasetHealth:
     if date_column not in frame.columns:
         raise ValueError(f"{dataset}: coluna temporal ausente: {date_column}")
     values = [column for column in value_columns if column in frame.columns]
     if not values:
         raise ValueError(f"{dataset}: nenhuma coluna de valor disponível.")
+    schema = assess_schema(frame, [date_column, *value_columns], expected_columns=expected_columns)
+    if schema.missing:
+        raise ValueError(f"{dataset}: schema inválido; faltam {list(schema.missing)}")
     dates = _valid_datetimes(frame[date_column])
     missing = frame[[date_column, *values]].isna().sum().sum()
     total_cells = max(len(frame) * (len(values) + 1), 1)
     numeric = frame[values].apply(pd.to_numeric, errors="coerce")
     invalid_rows = int(numeric.isna().all(axis=1).sum())
     metadata = snapshot_metadata(snapshot_path)
+    version = compute_dataset_version(frame, source=dataset, frequency="monthly")
+    stale, staleness_days = staleness(
+        dates.max() if not dates.empty else None,
+        as_of=as_of,
+        max_age_days=max_staleness_days if max_staleness_days is not None else float("inf"),
+    )
     return DatasetHealth(
         dataset=dataset,
         source_status=source_status,
@@ -105,6 +126,12 @@ def profile_time_series(
         outlier_rows=int(sum(_iqr_outliers(numeric[column]) for column in values)),
         frequency_gaps=_monthly_gaps(dates),
         notes=notes,
+        dataset_version=version,
+        schema_status=schema.status,
+        schema_missing_columns=schema.missing,
+        schema_unexpected_columns=schema.unexpected,
+        stale=stale,
+        staleness_days=staleness_days,
         **metadata,
     )
 
@@ -113,6 +140,10 @@ def profile_vehicle_catalog(
     frame: pd.DataFrame,
     source_status: str,
     snapshot_path: str | Path | None,
+    *,
+    expected_columns: Iterable[str] | None = None,
+    max_staleness_days: float | None = None,
+    as_of: object | None = None,
 ) -> DatasetHealth:
     required = ["id", "year", "make", "model", "comb08"]
     missing_columns = [column for column in required if column not in frame.columns]
@@ -131,6 +162,13 @@ def profile_vehicle_catalog(
         | core["comb08"].le(0)
     )
     metadata = snapshot_metadata(snapshot_path)
+    version = compute_dataset_version(frame, source="EPA vehicles", frequency="annual")
+    stale, staleness_days = staleness(
+        core["year"].max() if core["year"].notna().any() else None,
+        as_of=as_of,
+        max_age_days=max_staleness_days if max_staleness_days is not None else float("inf"),
+    )
+    schema = assess_schema(frame, required, expected_columns=expected_columns)
     return DatasetHealth(
         dataset="EPA vehicles",
         source_status=source_status,
@@ -145,6 +183,12 @@ def profile_vehicle_catalog(
         outlier_rows=_iqr_outliers(core["comb08"]),
         frequency_gaps=None,
         notes="Outliers usam IQR de `comb08`; eles são sinalizados, não removidos automaticamente.",
+        dataset_version=version,
+        schema_status=schema.status,
+        schema_missing_columns=schema.missing,
+        schema_unexpected_columns=schema.unexpected,
+        stale=stale,
+        staleness_days=staleness_days,
         **metadata,
     )
 
