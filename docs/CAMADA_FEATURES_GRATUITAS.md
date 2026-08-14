@@ -15,7 +15,7 @@ Esta camada adiciona **features exógenas rastreáveis** ao planejamento automot
 | `src/data/feature_builder.py` | Orquestra ingestão, fallback e construção de indicadores | Mercado mensal e painel de eventos por entidade |
 | `src/data/feature_store.py` | Parquet particionado e manifesto operacional | Tabelas por fonte/mês/entidade e status para a interface |
 | `scripts/refresh_free_features.py` | Execução reproduzível local ou automatizada | Resumo JSON sem segredos |
-| `.github/workflows/refresh-free-features.yml` | Atualização diária de notícias e mensal de macro/energia | Commits apenas de dados derivados e manifesto |
+| Workflow de atualização preparado | Atualização diária de notícias e mensal de macro/energia | Aguardando publicação quando houver permissão de workflow no repositório |
 
 Os clientes usam `httpx` assíncrono, retry limitado com `tenacity`, cache local em disco e mensagens estruturadas por fonte. O cache de respostas brutas fica em `data/feature_cache/`, que é ignorado pelo Git. O feature store preserva apenas tabelas normalizadas e indicadores agregados.
 
@@ -72,11 +72,11 @@ python scripts/refresh_free_features.py --sources fred,eia,news --start 2018-01-
 
 Sem chaves, o pipeline não falha: TOTALSA é carregada do snapshot local e o manifesto informa que as demais fontes não foram consultadas. Nenhum segredo é aceito por argumento de linha de comando, escrito em logs, armazenado em cache ou enviado ao front-end.
 
-## Atualização automatizada
+## Automação preparada
 
-O workflow do repositório executa News API diariamente e FRED/EIA mensalmente. Para ativá-lo, adicione `FRED_API_KEY`, `EIA_API_KEY` e `NEWS_API_KEY` aos segredos criptografados do repositório. O workflow usa as chaves apenas no processo de execução e cria commit somente quando o feature store muda.
+A rotina determinística foi preparada para executar News API diariamente e FRED/EIA mensalmente. Sua publicação no repositório permanece **pendente** porque a credencial atual não possui permissão para criar arquivos de workflow. O pipeline publicado continua plenamente executável de forma manual e não depende dessa autorização para ingestão, persistência, validação ou leitura de status pela interface.
 
-A rotina diária consulta uma janela curta de notícias e atualiza as partições de evento. A rotina mensal reprocessa o histórico macro/energético e preserva a disponibilidade por data. O processo é determinístico; não utiliza uma tarefa de IA recorrente para fazer requisições que podem ser executadas por código.
+Quando a permissão estiver disponível, o workflow deve receber `FRED_API_KEY`, `EIA_API_KEY` e `NEWS_API_KEY` como segredos criptografados do repositório. Ele usará as chaves apenas no processo de execução e criará commit somente quando o feature store mudar. A rotina diária consulta uma janela curta de notícias; a mensal reprocessa macro e energia com a disponibilidade temporal preservada. O processo é determinístico e não requer uma tarefa de IA recorrente.
 
 ## Expansão para vendas por marca e modelo
 
