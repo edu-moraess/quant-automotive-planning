@@ -816,10 +816,17 @@ with st.sidebar:
         else:
             st.caption("⚪ Status das APIs: não verificado ainda.")
 
-        # Última atualização do feature store.
+        # Última atualização do feature store — exibida no fuso de São Paulo.
         if feature_manifest.exists():
-            last_update = datetime.datetime.fromtimestamp(feature_manifest_mtime).strftime("%d/%m/%Y %H:%M")
-            st.caption(f"⏱ Última atualização: {last_update}")
+            import zoneinfo  # noqa: PLC0415
+
+            _tz_sp = zoneinfo.ZoneInfo("America/Sao_Paulo")
+            last_update = (
+                datetime.datetime.fromtimestamp(feature_manifest_mtime, tz=datetime.UTC)
+                .astimezone(_tz_sp)
+                .strftime("%d/%m/%Y %H:%M")
+            )
+            st.caption(f"⏱ Última atualização: {last_update} (SP)")
 
         # Botão de atualização — usa as chaves configuradas no Streamlit Cloud.
         if st.button(
