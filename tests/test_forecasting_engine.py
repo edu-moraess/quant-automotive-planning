@@ -14,10 +14,12 @@ from analysis import (
     prequential_interval_quality,
     run_backtest,
 )
+from econometric_diagnostics import diagnose_residuals
 from forecast_engine import (
     PRIMARY_MODEL,
     aggregate_horizon_metrics,
     build_model_registry,
+    evaluate_lag_sets,
     select_model_by_evidence,
     walk_forward_by_horizon,
 )
@@ -103,3 +105,21 @@ def test_selection_prefers_primary_inside_mape_tolerance():
         }
     )
     assert select_model_by_evidence(summary, tolerance_mape_pp=0.10) == PRIMARY_MODEL
+
+
+def test_lag_selection_is_aggregated_by_horizon():
+    result = evaluate_lag_sets(_market_data(), lag_sets=((1,), (1, 12)), horizons=(1, 3), n_origins=2)
+    assert set(result["horizon"]) == {1, 3}
+    assert set(result["lags"]) == {(1,), (1, 12)}
+    assert (result["origins"] == 2).all()
+
+
+def test_econometric_diagnostics_return_required_families():
+    data = _market_data()
+    residuals = data["vendas_saar_milhoes"].diff().dropna().to_numpy()[-100:]
+    design = data[["vendas_saar_milhoes"]].iloc[-100:].reset_index(drop=True)
+    diagnostics = diagnose_residuals(residuals, design_matrix=design, max_lag=6)
+    assert {"durbin_watson", "ljung_box", "acf", "pacf", "jarque_bera", "arch", "breusch_pagan", "vif", "qq"}.issubset(
+        diagnostics
+    )
+    assert not diagnostics["vif"].empty

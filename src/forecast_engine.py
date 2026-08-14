@@ -350,6 +350,52 @@ def aggregate_horizon_metrics(results: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def evaluate_lag_sets(
+    data: pd.DataFrame,
+    *,
+    lag_sets: tuple[tuple[int, ...], ...] = ((1,), (1, 12), (1, 2, 12)),
+    horizons: tuple[int, ...] = (1, 3, 6),
+    n_origins: int = 4,
+) -> pd.DataFrame:
+    """Compara especificações de lags por walk-forward, nunca por R² in-sample."""
+    prepared = BaseForecastModel("lag_selection")._validate_frame(data)
+    if not lag_sets:
+        raise ValueError("É necessário informar ao menos um conjunto de lags.")
+    max_horizon = max(horizons)
+    first_origin = len(prepared) - n_origins - max_horizon + 1
+    if first_origin < max(24, max_horizon + 12):
+        raise ValueError("Histórico insuficiente para comparar conjuntos de lags.")
+    rows: list[dict[str, Any]] = []
+    for lags in lag_sets:
+        if not lags or any(lag < 1 for lag in lags):
+            raise ValueError("Cada conjunto de lags deve ser positivo e não vazio.")
+        for origin_offset in range(n_origins):
+            origin = first_origin + origin_offset
+            train = prepared.iloc[:origin]
+            future = prepared.iloc[origin : origin + max_horizon]
+            model = LaggedRegressionModel(lags=tuple(lags)).fit(train)
+            prediction = model.forecast(max_horizon)
+            for horizon in horizons:
+                metrics = model.evaluate(future[TARGET_COLUMN].to_numpy(dtype=float)[:horizon], prediction[:horizon])
+                rows.append({"lags": tuple(lags), "origin": train[DATE_COLUMN].max(), "horizon": horizon, **metrics})
+    result = pd.DataFrame(rows)
+    return (
+        result.groupby(["lags", "horizon"], as_index=False)
+        .agg(
+            RMSE=("RMSE", "mean"),
+            MAE=("MAE", "mean"),
+            WAPE=("WAPE", "mean"),
+            sMAPE=("sMAPE", "mean"),
+            MASE=("MASE", "mean"),
+            MAPE=("MAPE", "mean"),
+            Bias=("Bias", "mean"),
+            origins=("origin", "nunique"),
+        )
+        .sort_values(["horizon", "MAPE", "RMSE"])
+        .reset_index(drop=True)
+    )
+
+
 def select_model_by_evidence(
     summary: pd.DataFrame,
     *,
