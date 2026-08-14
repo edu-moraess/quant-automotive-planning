@@ -796,57 +796,55 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- Formulário de produto (EPA) ---
-    with st.form("product_filters"):
-        st.markdown("### Universo de produto")
-        selected_years = st.slider("Ano-modelo", min_value=year_bounds[0], max_value=year_bounds[1], value=year_bounds)
-        selected_makes = st.multiselect(
-            "Marcas EPA (campo make)", sorted(vehicle_data["make"].unique()), placeholder="Todo o catálogo"
-        )
-        selected_powertrains = st.multiselect(
-            "Tecnologia", sorted(vehicle_data["powertrain"].unique()), placeholder="Todas as tecnologias"
-        )
-        selected_segments = st.multiselect(
-            "Segmento EPA", sorted(vehicle_data["VClass"].unique()), placeholder="Todos os segmentos"
-        )
-        product_updated = st.form_submit_button("Aplicar recorte de produto", width="stretch")
-        st.caption(
-            "Atualiza Resumo, Portfólio e Energia & Combustível. Não altera o mercado FRED nem os artefatos de modelos."
-        )
-        if product_updated:
-            st.success("Recorte EPA aplicado nas abas de produto.")
+    # --- Formulário de produto (EPA) — colapsável ---
+    with st.expander("🔍 Universo de produto", expanded=False):
+        with st.form("product_filters"):
+            selected_years = st.slider(
+                "Ano-modelo", min_value=year_bounds[0], max_value=year_bounds[1], value=year_bounds
+            )
+            selected_makes = st.multiselect(
+                "Marcas EPA", sorted(vehicle_data["make"].unique()), placeholder="Todo o catálogo"
+            )
+            selected_powertrains = st.multiselect(
+                "Tecnologia", sorted(vehicle_data["powertrain"].unique()), placeholder="Todas"
+            )
+            selected_segments = st.multiselect(
+                "Segmento EPA", sorted(vehicle_data["VClass"].unique()), placeholder="Todos"
+            )
+            product_updated = st.form_submit_button("Aplicar recorte de produto", width="stretch")
+            st.caption("Atualiza Resumo, Portfólio e Energia & Combustível.")
+            if product_updated:
+                st.success("Recorte EPA aplicado.")
 
-    # --- Formulário de forecast e planejamento ---
-    with st.form("market_and_planning"):
-        st.markdown("### Forecast")
-        horizon = st.slider("Horizonte de projeção", 3, 18, 6)
-        n_folds = st.slider("Dobras walk-forward", 2, 8, 4)
-        test_size = st.slider("Meses por dobra", 3, 12, 6)
-        allow_online = st.checkbox(
-            "Consultar FRED online na próxima atualização",
-            value=False,
-            help="A fonte é consultada somente ao atualizar este bloco. Se falhar, o snapshot versionado é usado e o motivo aparece no painel.",
-        )
-        st.caption(
-            "Atualiza Resumo, Mercado & Forecast e Planejamento. A consulta FRED só muda resultados se houver observação nova ou revisão."
-        )
-        st.markdown("### Planejamento · ASSUMPTIONS")
-        participation_pct = st.slider("Participação assumida", 1, 20, 8, 1, format="%d%%")
-        capacity = st.number_input("Capacidade regular mensal", 10_000, 300_000, 110_000, 5_000)
-        overtime_capacity = st.number_input("Capacidade extra mensal", 0, 150_000, 0, 5_000)
-        initial_inventory = st.number_input("Estoque inicial", 0, 500_000, 15_000, 5_000)
-        safety_stock = st.number_input("Estoque de segurança", 0, 300_000, 0, 5_000)
-        with st.expander("Custos assumidos (US$ por veículo / período)"):
-            production_cost = st.number_input("Produção regular", 0, 100_000, 25_000, 500)
-            overtime_cost = st.number_input("Produção extra", 0, 120_000, 30_000, 500)
-            inventory_cost = st.number_input("Estoque", 0, 10_000, 350, 50)
-            backlog_cost = st.number_input("Backlog", 0, 200_000, 45_000, 500)
-            safety_stock_penalty = st.number_input("Desvio de segurança", 0, 50_000, 1_000, 100)
-            setup_cost = st.number_input("Setup mensal", 0, 1_000_000, 0, 5_000)
-        market_updated = st.form_submit_button("Atualizar forecast e planejamento", width="stretch")
-        if market_updated:
-            st.session_state["market_analysis_run_id"] = st.session_state.get("market_analysis_run_id", 0) + 1
-            st.success("Forecast e planejamento atualizados.")
+    # --- Formulário de forecast e planejamento — colapsável ---
+    with st.expander("📈 Forecast & Planejamento", expanded=False):
+        with st.form("market_and_planning"):
+            st.markdown("**Forecast**")
+            horizon = st.slider("Horizonte de projeção", 3, 18, 6)
+            n_folds = st.slider("Dobras walk-forward", 2, 8, 4)
+            test_size = st.slider("Meses por dobra", 3, 12, 6)
+            allow_online = st.checkbox(
+                "Consultar FRED online",
+                value=False,
+                help="A fonte é consultada somente ao atualizar este bloco. Se falhar, o snapshot versionado é usado.",
+            )
+            st.markdown("**Planejamento · ASSUMPTIONS**")
+            participation_pct = st.slider("Participação assumida", 1, 20, 8, 1, format="%d%%")
+            capacity = st.number_input("Capacidade regular mensal", 10_000, 300_000, 110_000, 5_000)
+            overtime_capacity = st.number_input("Capacidade extra mensal", 0, 150_000, 0, 5_000)
+            initial_inventory = st.number_input("Estoque inicial", 0, 500_000, 15_000, 5_000)
+            safety_stock = st.number_input("Estoque de segurança", 0, 300_000, 0, 5_000)
+            with st.expander("Custos (US$ por veículo / período)"):
+                production_cost = st.number_input("Produção regular", 0, 100_000, 25_000, 500)
+                overtime_cost = st.number_input("Produção extra", 0, 120_000, 30_000, 500)
+                inventory_cost = st.number_input("Estoque", 0, 10_000, 350, 50)
+                backlog_cost = st.number_input("Backlog", 0, 200_000, 45_000, 500)
+                safety_stock_penalty = st.number_input("Desvio de segurança", 0, 50_000, 1_000, 100)
+                setup_cost = st.number_input("Setup mensal", 0, 1_000_000, 0, 5_000)
+            market_updated = st.form_submit_button("Atualizar forecast e planejamento", width="stretch")
+            if market_updated:
+                st.session_state["market_analysis_run_id"] = st.session_state.get("market_analysis_run_id", 0) + 1
+                st.success("Forecast e planejamento atualizados.")
 
     # --- Detalhes do feature store (expander discreto no rodapé) ---
     with st.expander("Detalhe das fontes"):
