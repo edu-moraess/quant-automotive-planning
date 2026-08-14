@@ -15,7 +15,7 @@ Esta camada adiciona **features exógenas rastreáveis** ao planejamento automot
 | `src/data/feature_builder.py` | Orquestra ingestão, fallback e construção de indicadores | Mercado mensal e painel de eventos por entidade |
 | `src/data/feature_store.py` | Parquet particionado e manifesto operacional | Tabelas por fonte/mês/entidade e status para a interface |
 | `scripts/refresh_free_features.py` | Execução reproduzível local ou automatizada | Resumo JSON sem segredos |
-| Workflow de atualização preparado | Atualização diária de notícias e mensal de macro/energia | Aguardando publicação quando houver permissão de workflow no repositório |
+| Workflow de atualização preparado | Atualização diária de notícias e NHTSA, além de macro/energia mensal | Aguardando publicação quando houver permissão de workflow no repositório |
 
 Os clientes usam `httpx` assíncrono, retry limitado com `tenacity`, cache local em disco e mensagens estruturadas por fonte. O cache de respostas brutas fica em `data/feature_cache/`, que é ignorado pelo Git. O feature store preserva apenas tabelas normalizadas e indicadores agregados.
 
@@ -31,7 +31,7 @@ As notícias são filtradas pelo `publishedAt`, deduplicadas por URL ou assinatu
 | EIA | Gasolina, diesel, eletricidade, diferenciais e variações de 1/3/12 meses | Semanal/mensal convertida a mensal | Lag explícito por série |
 | News API | Cobertura, sentimento lexical, recall, lançamento, produção, incentivo e intensidade temática | Diário agregado a mensal | Artigo publicado até `as_of`; deduplicação antes da agregação |
 | EPA | Eficiência, emissões, combustível, autonomia e tecnologia | Configuração/ano-modelo | Atributo técnico de produto, não alvo de vendas |
-| NHTSA | Recall e reclamação por veículo | Evento por ano/marca/modelo | Somente registros com data de recebimento/publicação |
+| NHTSA | Recalls, reclamações e índice de eventos | Evento por ano/marca/modelo | Somente registros com data de recebimento/publicação até `as_of` |
 
 A FRED disponibiliza tanto consulta de observações quanto consulta de datas de vintage [1]. A EIA oferece dados de energia gratuitos por API, incluindo petróleo e eletricidade [2]. News API permite recuperação de artigos por termo, data, domínio e idioma; no plano de desenvolvimento a chave é gratuita [3]. A NHTSA publica APIs e arquivos para recalls e reclamações, inclusive consultas por ano, marca e modelo [4].
 
@@ -44,6 +44,7 @@ feature_store/
   source=fred/month=YYYY-MM/data.parquet
   source=eia/month=YYYY-MM/data.parquet
   source=news/month=YYYY-MM/marca=<marca>/modelo=<modelo>/data.parquet
+  source=nhtsa/month=YYYY-MM/marca=<marca>/modelo=<modelo>/ano_modelo=<ano>/data.parquet
   source=feature_builder/month=YYYY-MM/[marca=<marca>/modelo=<modelo>/]data.parquet
   manifest.json
 ```
@@ -67,16 +68,22 @@ A execução manual usa variáveis de ambiente com os mesmos nomes, o que manté
 export FRED_API_KEY="..."
 export EIA_API_KEY="..."
 export NEWS_API_KEY="..."
-python scripts/refresh_free_features.py --sources fred,eia,news --start 2018-01-01
+python scripts/refresh_free_features.py --sources fred,eia,news,nhtsa --start 2018-01-01
 ```
 
 Sem chaves, o pipeline não falha: TOTALSA é carregada do snapshot local e o manifesto informa que as demais fontes não foram consultadas. Nenhum segredo é aceito por argumento de linha de comando, escrito em logs, armazenado em cache ou enviado ao front-end.
 
 ## Automação preparada
 
-A rotina determinística foi preparada para executar News API diariamente e FRED/EIA mensalmente. Sua publicação no repositório permanece **pendente** porque a credencial atual não possui permissão para criar arquivos de workflow. O pipeline publicado continua plenamente executável de forma manual e não depende dessa autorização para ingestão, persistência, validação ou leitura de status pela interface.
+A rotina determinística foi preparada para executar News API e NHTSA diariamente, além de FRED/EIA mensalmente. Sua publicação no repositório permanece **pendente** porque a credencial atual não possui permissão para criar arquivos de workflow. O pipeline publicado continua plenamente executável de forma manual e não depende dessa autorização para ingestão, persistência, validação ou leitura de status pela interface.
 
-Quando a permissão estiver disponível, o workflow deve receber `FRED_API_KEY`, `EIA_API_KEY` e `NEWS_API_KEY` como segredos criptografados do repositório. Ele usará as chaves apenas no processo de execução e criará commit somente quando o feature store mudar. A rotina diária consulta uma janela curta de notícias; a mensal reprocessa macro e energia com a disponibilidade temporal preservada. O processo é determinístico e não requer uma tarefa de IA recorrente.
+Quando a permissão estiver disponível, o workflow deve receber `FRED_API_KEY`, `EIA_API_KEY` e `NEWS_API_KEY` como segredos criptografados do repositório. A NHTSA não exige chave. Ele usará as chaves apenas no processo de execução e criará commit somente quando o feature store mudar. A rotina diária consulta uma janela curta de notícias; a mensal reprocessa macro e energia com a disponibilidade temporal preservada. O processo é determinístico e não requer uma tarefa de IA recorrente.
+
+## Monitoramento NHTSA
+
+A watchlist inicial acompanha seis combinações públicas de marca, modelo e ano-modelo: Ford Maverick, Chevrolet Silverado 1500, Toyota RAV4, Honda CR-V, Tesla Model 3 e Hyundai IONIQ 5, todas de 2024. A configuração fica em `config/features.toml`; ela é deliberadamente limitada para respeitar a API pública e pode ser ajustada sem mudar o código.
+
+A coleta une recalls e reclamações por veículo. Cada evento só entra se a data retornada pela fonte for anterior ou igual a `as_of`. Recalls usam a data de relatório retornada pela NHTSA e reclamações usam a data de protocolo. No painel, o **índice de eventos** é `2 × recalls + 1 × reclamações`. Essa ponderação é uma regra explícita de triagem operacional: ela não representa taxa de defeito, severidade técnica, qualidade relativa, vendas ou risco financeiro.
 
 ## Expansão para vendas por marca e modelo
 

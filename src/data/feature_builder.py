@@ -15,6 +15,7 @@ from .settings import FeatureSettings, FeatureSourceConfig
 from .sources.eia import EIAClient
 from .sources.fred import FREDClient
 from .sources.news import NewsAPIClient
+from .sources.nhtsa import NHTSAClient
 from .temporal import add_lagged_changes, assert_no_future_availability, monthly_wide_features
 
 
@@ -47,11 +48,12 @@ class FeatureBuilder:
         sources: set[SourceName] | None = None,
     ) -> FeatureBuildResult:
         """Executa fontes selecionadas, preservando snapshots de fontes não solicitadas."""
-        selected = sources or {SourceName.FRED, SourceName.EIA, SourceName.NEWS}
+        selected = sources or {SourceName.FRED, SourceName.EIA, SourceName.NEWS, SourceName.NHTSA}
         async with (
             FREDClient(self.settings) as fred,
             EIAClient(self.settings) as eia,
             NewsAPIClient(self.settings) as news,
+            NHTSAClient(self.settings) as nhtsa,
         ):
             fred_task = (
                 fred.fetch_many(self.source_config.fred_series, window)
@@ -68,21 +70,29 @@ class FeatureBuilder:
                 if SourceName.NEWS in selected
                 else self._skipped_payload(SourceName.NEWS, NewsAPIClient._empty_frame())
             )
+            nhtsa_task = (
+                nhtsa.fetch_many(self.source_config.nhtsa_targets, window)
+                if SourceName.NHTSA in selected
+                else self._skipped_payload(SourceName.NHTSA, NHTSAClient._empty_frame())
+            )
             resolved = await asyncio.gather(
                 self._resolve_payload(fred_task),
                 self._resolve_payload(eia_task),
                 self._resolve_payload(news_task),
+                self._resolve_payload(nhtsa_task),
             )
-        fred_payload, eia_payload, news_payload = resolved
+        fred_payload, eia_payload, news_payload, nhtsa_payload = resolved
 
         if SourceName.FRED in selected:
             fred_frame, fred_status = self._with_total_sa_fallback(fred_payload.frame, fred_payload.status, window)
         else:
             fred_frame, fred_status = fred_payload.frame, fred_payload.status
         market_features = self._build_market_features(fred_frame, eia_payload.frame, window)
-        event_features = self._build_event_features(news_payload.frame, window)
+        event_features = self._build_event_features(news_payload.frame, nhtsa_payload.frame, window)
         statuses = [
-            payload.status for payload in (fred_payload, eia_payload, news_payload) if payload.status.source in selected
+            payload.status
+            for payload in (fred_payload, eia_payload, news_payload, nhtsa_payload)
+            if payload.status.source in selected
         ]
         if SourceName.FRED in selected:
             statuses = [fred_status if status.source == SourceName.FRED else status for status in statuses]
@@ -99,9 +109,12 @@ class FeatureBuilder:
             fred_frame if SourceName.FRED in selected else pd.DataFrame(),
             eia_payload.frame if SourceName.EIA in selected else pd.DataFrame(),
             news_payload.frame if SourceName.NEWS in selected else pd.DataFrame(),
+            nhtsa_payload.frame if SourceName.NHTSA in selected else pd.DataFrame(),
             market_features if {SourceName.FRED, SourceName.EIA}.intersection(selected) else pd.DataFrame(),
-            event_features if SourceName.NEWS in selected else pd.DataFrame(),
+            event_features if {SourceName.NEWS, SourceName.NHTSA}.intersection(selected) else pd.DataFrame(),
             statuses,
+            replace_nhtsa=SourceName.NHTSA in selected
+            and nhtsa_payload.status.state in {SourceState.FRESH, SourceState.CACHED},
         )
         return FeatureBuildResult(
             market_features=market_features,
@@ -199,40 +212,64 @@ class FeatureBuilder:
         return market
 
     @staticmethod
-    def _build_event_features(news: pd.DataFrame, window: TimeWindow) -> pd.DataFrame:
-        if news.empty:
-            return pd.DataFrame(index=pd.MultiIndex.from_arrays([[], [], []], names=["mes", "marca", "modelo"]))
-        assert_no_future_availability(news, available_column="disponivel_em", as_of=window.as_of)
-        prepared = news.copy()
-        prepared["mes"] = pd.to_datetime(prepared["publicado_em"]).dt.to_period("M").dt.to_timestamp()
-        prepared["marca"] = prepared["marca"].fillna("MERCADO")
-        prepared["modelo"] = prepared["modelo"].fillna("__all__")
+    def _build_event_features(news: pd.DataFrame, nhtsa: pd.DataFrame, window: TimeWindow) -> pd.DataFrame:
+        """Combina sinais de mídia e segurança em um painel mensal por marca e modelo."""
         index_columns = ["mes", "marca", "modelo"]
-        totals = prepared.groupby(index_columns, as_index=False).agg(
-            cobertura_midia=("article_id", "nunique"),
-            sentimento_medio=("sentimento", "mean"),
-        )
-        themes = (
-            prepared.groupby([*index_columns, "tema"], as_index=False)["article_id"]
-            .nunique()
-            .pivot(index=index_columns, columns="tema", values="article_id")
-            .fillna(0)
-            .add_prefix("noticias_")
-            .reset_index()
-        )
-        result = totals.merge(themes, on=index_columns, how="left")
-        theme_columns = [column for column in result.columns if column.startswith("noticias_")]
-        result["intensidade_tematica"] = result[theme_columns].sum(axis=1) if theme_columns else 0
-        return result.set_index(index_columns).sort_index()
+        frames = []
+        if not news.empty:
+            assert_no_future_availability(news, available_column="disponivel_em", as_of=window.as_of)
+            prepared = news.copy()
+            prepared["mes"] = pd.to_datetime(prepared["publicado_em"]).dt.to_period("M").dt.to_timestamp()
+            prepared["marca"] = prepared["marca"].fillna("MERCADO")
+            prepared["modelo"] = prepared["modelo"].fillna("__all__")
+            totals = prepared.groupby(index_columns, as_index=False).agg(
+                cobertura_midia=("article_id", "nunique"),
+                sentimento_medio=("sentimento", "mean"),
+            )
+            themes = (
+                prepared.groupby([*index_columns, "tema"], as_index=False)["article_id"]
+                .nunique()
+                .pivot(index=index_columns, columns="tema", values="article_id")
+                .fillna(0)
+                .add_prefix("noticias_")
+                .reset_index()
+            )
+            news_features = totals.merge(themes, on=index_columns, how="left")
+            theme_columns = [column for column in news_features.columns if column.startswith("noticias_")]
+            news_features["intensidade_tematica"] = news_features[theme_columns].sum(axis=1) if theme_columns else 0
+            frames.append(news_features.set_index(index_columns))
+        if not nhtsa.empty:
+            assert_no_future_availability(nhtsa, available_column="disponivel_em", as_of=window.as_of)
+            prepared = nhtsa.copy()
+            prepared["mes"] = pd.to_datetime(prepared["disponivel_em"]).dt.to_period("M").dt.to_timestamp()
+            counts = (
+                prepared.groupby([*index_columns, "tipo_evento"], as_index=False)["evento_id"]
+                .nunique()
+                .pivot(index=index_columns, columns="tipo_evento", values="evento_id")
+                .fillna(0)
+                .rename(columns={"recall": "nhtsa_recalls", "complaint": "nhtsa_reclamacoes"})
+            )
+            counts["nhtsa_recalls"] = counts.get("nhtsa_recalls", 0)
+            counts["nhtsa_reclamacoes"] = counts.get("nhtsa_reclamacoes", 0)
+            counts["nhtsa_eventos_total"] = counts["nhtsa_recalls"] + counts["nhtsa_reclamacoes"]
+            counts["nhtsa_indice_risco"] = 2 * counts["nhtsa_recalls"] + counts["nhtsa_reclamacoes"]
+            frames.append(counts)
+        if not frames:
+            return pd.DataFrame(index=pd.MultiIndex.from_arrays([[], [], []], names=index_columns))
+        result = pd.concat(frames, axis=1, join="outer").fillna(0).sort_index()
+        return result
 
     def _persist(
         self,
         fred: pd.DataFrame,
         eia: pd.DataFrame,
         news: pd.DataFrame,
+        nhtsa: pd.DataFrame,
         market_features: pd.DataFrame,
         event_features: pd.DataFrame,
         statuses: list[SourceRunStatus],
+        *,
+        replace_nhtsa: bool,
     ) -> None:
         self.store.write(
             SourceName.FRED,
@@ -252,6 +289,15 @@ class FeatureBuilder:
             date_column="publicado_em",
             dedupe_columns=("article_id",),
             entity_columns=("marca", "modelo"),
+        )
+        if replace_nhtsa:
+            self.store.clear_source(SourceName.NHTSA)
+        self.store.write(
+            SourceName.NHTSA,
+            nhtsa,
+            date_column="disponivel_em",
+            dedupe_columns=("evento_id", "tipo_evento"),
+            entity_columns=("marca", "modelo", "ano_modelo"),
         )
         market_frame = market_features.reset_index()
         self.store.write(

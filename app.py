@@ -19,6 +19,7 @@ import analysis as analysis_module  # noqa: E402
 import energy_intelligence as energy_module  # noqa: E402
 import vehicle_intelligence as vehicle_module  # noqa: E402
 from config import DATA_DIR, ENERGY_SNAPSHOT, EPA_SNAPSHOT, MARKET_SNAPSHOT, MODEL_ARTIFACTS_DIR  # noqa: E402
+from data.contracts import SourceName  # noqa: E402
 from data.feature_store import FeatureStore  # noqa: E402
 from presentation import fmt_month_display, format_temporal_display  # noqa: E402
 from scenarios import energy_price_sensitivity  # noqa: E402
@@ -109,6 +110,34 @@ def load_feature_source_status(manifest_mtime: float) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+@st.cache_data(show_spinner=False)
+def load_nhtsa_risk_snapshot(manifest_mtime: float) -> pd.DataFrame:
+    """Agrega o monitoramento NHTSA persistido sem acionar a API no dashboard."""
+    source_path = DATA_DIR / "feature_store" / f"source={SourceName.NHTSA.value}"
+    partitions = sorted(source_path.rglob("data.parquet")) if source_path.exists() else []
+    if not partitions:
+        return pd.DataFrame()
+    events = pd.concat([pd.read_parquet(path) for path in partitions], ignore_index=True)
+    events["disponivel_em"] = pd.to_datetime(events["disponivel_em"], errors="coerce")
+    events = events.dropna(subset=["disponivel_em", "marca", "modelo", "ano_modelo", "tipo_evento"])
+    if events.empty:
+        return pd.DataFrame()
+    index_columns = ["marca", "modelo", "ano_modelo"]
+    counts = (
+        events.groupby([*index_columns, "tipo_evento"], as_index=False)["evento_id"]
+        .nunique()
+        .pivot(index=index_columns, columns="tipo_evento", values="evento_id")
+        .fillna(0)
+        .rename(columns={"recall": "recalls", "complaint": "reclamacoes"})
+    )
+    counts["recalls"] = counts.get("recalls", 0)
+    counts["reclamacoes"] = counts.get("reclamacoes", 0)
+    last_event = events.groupby(index_columns, as_index=True)["disponivel_em"].max().rename("ultimo_evento")
+    result = counts.join(last_event).reset_index()
+    result["indice_risco"] = 2 * result["recalls"] + result["reclamacoes"]
+    return result.sort_values(["indice_risco", "ultimo_evento"], ascending=[False, False]).reset_index(drop=True)
 
 
 @st.cache_data(show_spinner=False)
@@ -637,7 +666,9 @@ except Exception as error:
 metadata = vehicle_universe_metadata(vehicle_data)
 year_bounds = (metadata["ano_inicial"], metadata["ano_final"])
 feature_manifest = DATA_DIR / "feature_store" / "manifest.json"
-feature_status = load_feature_source_status(feature_manifest.stat().st_mtime if feature_manifest.exists() else 0.0)
+feature_manifest_mtime = feature_manifest.stat().st_mtime if feature_manifest.exists() else 0.0
+feature_status = load_feature_source_status(feature_manifest_mtime)
+nhtsa_risk_snapshot = load_nhtsa_risk_snapshot(feature_manifest_mtime)
 
 with st.sidebar:
     st.markdown("## QUANT")
@@ -906,6 +937,38 @@ with tab_portfolio:
         width="stretch",
         hide_index=True,
     )
+    st.markdown("#### Monitoramento de risco NHTSA")
+    if nhtsa_risk_snapshot.empty:
+        st.caption("A watchlist NHTSA ainda não possui eventos persistidos.")
+    else:
+        nhtsa_display = nhtsa_risk_snapshot.rename(
+            columns={
+                "marca": "Marca",
+                "modelo": "Modelo",
+                "ano_modelo": "Ano-modelo",
+                "recalls": "Recalls",
+                "reclamacoes": "Reclamações",
+                "indice_risco": "Índice de risco",
+                "ultimo_evento": "Último evento",
+            }
+        )
+        nhtsa_display = format_temporal_display(nhtsa_display, daily_columns=["Último evento"])
+        st.dataframe(
+            nhtsa_display.style.format(
+                {
+                    "Ano-modelo": "{:.0f}",
+                    "Recalls": "{:.0f}",
+                    "Reclamações": "{:.0f}",
+                    "Índice de risco": "{:.0f}",
+                }
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+        st.caption(
+            "Watchlist pública por marca, modelo e ano-modelo. O índice soma 2 × recalls e 1 × reclamações; ele prioriza monitoramento e não mede taxa de defeito, qualidade, vendas ou risco financeiro."
+        )
+
     with st.expander("Registro temporal completo de marcas EPA"):
         registry_display = registry.rename(
             columns={
@@ -1378,16 +1441,23 @@ with tab_method:
     st.markdown("### Fontes, cobertura e limites")
     source_table = pd.DataFrame(
         {
-            "Fonte": ["FRED — TOTALSA", "EPA / FuelEconomy.gov", "EIA / FRED — energia"],
+            "Fonte": [
+                "FRED — TOTALSA",
+                "EPA / FuelEconomy.gov",
+                "EIA / FRED — energia",
+                "NHTSA — recalls e reclamações",
+            ],
             "Cobertura": [
                 "Mercado agregado mensal de veículos leves nos EUA.",
                 f"{fmt_int(metadata['observacoes'])} configurações, {metadata['ano_inicial']}–{metadata['ano_final']}, por marca, modelo, classe, combustível, eficiência e emissões.",
                 "Gasolina e diesel nacionais semanais, consolidados mensalmente; eletricidade média urbana mensal.",
+                "Watchlist pública de seis combinações de marca, modelo e ano-modelo; eventos datados desde 2023.",
             ],
             "Uso": [
                 "Previsão e cenário de demanda.",
                 "Portfólio, tecnologia, eficiência, emissões e rede neural.",
                 "Preço energético, econometria e custo de referência por 100 milhas.",
+                "Monitoramento de eventos de segurança; não mede vendas, qualidade relativa ou risco financeiro.",
             ],
         }
     )

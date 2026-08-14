@@ -7,7 +7,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from data import FeatureBuilder, FeatureSettings, FeatureSourceConfig, NewsQuery, SourceName, TimeWindow
+from data import FeatureBuilder, FeatureSettings, FeatureSourceConfig, NewsQuery, NHTSATarget, SourceName, TimeWindow
+from data.feature_store import FeatureStore
 from data.sources.eia import EIAClient
 from data.sources.epa import EPAClient
 from data.sources.fred import FREDClient
@@ -146,6 +147,76 @@ def test_nhtsa_client_excludes_events_after_cutoff(tmp_path):
     result = asyncio.run(run_client())
     assert len(result.frame) == 1
     assert result.frame.loc[0, "evento_id"] == "24V001"
+
+
+def test_nhtsa_watchlist_consolidates_recalls_and_complaints(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "recalls" in str(request.url):
+            return httpx.Response(
+                200,
+                json={"results": [{"NHTSACampaignNumber": "24V001", "ReportReceivedDate": "2024-01-15"}]},
+            )
+        return httpx.Response(
+            200,
+            json={"results": [{"odiNumber": "11400001", "dateComplaintFiled": "2024-01-20"}]},
+        )
+
+    settings = _settings(tmp_path)
+    window = TimeWindow(start="2024-01-01", as_of="2024-02-01")
+    target = NHTSATarget(make="Ford", model="F-150", model_year=2024)
+
+    async def run_client():
+        async with NHTSAClient(settings, transport=httpx.MockTransport(handler)) as client:
+            return await client.fetch_many([target], window)
+
+    result = asyncio.run(run_client())
+    assert {"recall", "complaint"} == set(result.frame["tipo_evento"])
+    assert result.status.rows == 2
+
+
+def test_nhtsa_event_features_calculate_monthly_risk_index():
+    nhtsa = pd.DataFrame(
+        {
+            "evento_id": ["r1", "c1", "c2"],
+            "disponivel_em": ["2024-01-10", "2024-01-12", "2024-01-13"],
+            "marca": ["Ford", "Ford", "Ford"],
+            "modelo": ["F-150", "F-150", "F-150"],
+            "ano_modelo": [2024, 2024, 2024],
+            "tipo_evento": ["recall", "complaint", "complaint"],
+        }
+    )
+    result = FeatureBuilder._build_event_features(
+        pd.DataFrame(),
+        nhtsa,
+        TimeWindow(start="2024-01-01", as_of="2024-01-31"),
+    )
+    row = result.loc[(pd.Timestamp("2024-01-01"), "Ford", "F-150")]
+    assert row["nhtsa_recalls"] == 1
+    assert row["nhtsa_reclamacoes"] == 2
+    assert row["nhtsa_indice_risco"] == 4
+
+
+def test_feature_store_reads_persisted_nhtsa_events(tmp_path):
+    store = FeatureStore(tmp_path / "store")
+    events = pd.DataFrame(
+        {
+            "evento_id": ["r1"],
+            "disponivel_em": [pd.Timestamp("2024-01-10")],
+            "marca": ["Ford"],
+            "modelo": ["Maverick"],
+            "ano_modelo": [2024],
+            "tipo_evento": ["recall"],
+        }
+    )
+    store.write(
+        SourceName.NHTSA,
+        events,
+        date_column="disponivel_em",
+        dedupe_columns=("evento_id", "tipo_evento"),
+        entity_columns=("marca", "modelo", "ano_modelo"),
+    )
+    loaded = store.read_source(SourceName.NHTSA)
+    assert loaded.loc[0, "evento_id"] == "r1"
 
 
 def test_temporal_guard_filters_future_observations():

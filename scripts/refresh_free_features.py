@@ -26,8 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=ROOT / "config" / "features.toml")
     parser.add_argument(
         "--sources",
-        default="fred,eia,news",
-        help="Lista separada por vírgula: fred,eia,news.",
+        default="fred,eia,news,nhtsa",
+        help="Lista separada por vírgula: fred,eia,news,nhtsa.",
     )
     return parser.parse_args()
 

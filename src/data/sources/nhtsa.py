@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 
 import httpx
 import pandas as pd
 
-from ..contracts import SourceName, SourcePayload, SourceRunStatus, SourceState, TimeWindow
+from ..contracts import NHTSATarget, SourceName, SourcePayload, SourceRunStatus, SourceState, TimeWindow
 from ..settings import FeatureSettings
 from .base import BaseAPIClient, SourceUnavailableError
 
@@ -43,6 +44,78 @@ class NHTSAClient(BaseAPIClient):
             model=model,
             model_year=model_year,
             window=window,
+        )
+
+    async def fetch_target(self, target: NHTSATarget, window: TimeWindow) -> SourcePayload:
+        """Consolida recalls e reclamações de um veículo monitorado."""
+        recalls, complaints = await asyncio.gather(
+            self.fetch_recalls(target.make, target.model, target.model_year, window),
+            self.fetch_complaints(target.make, target.model, target.model_year, window),
+        )
+        frames = [payload.frame for payload in (recalls, complaints) if not payload.frame.empty]
+        frame = pd.concat(frames, ignore_index=True) if frames else self._empty_frame()
+        if not frame.empty:
+            frame = (
+                frame.drop_duplicates(["evento_id", "tipo_evento"]).sort_values("disponivel_em").reset_index(drop=True)
+            )
+        components = [recalls.status, complaints.status]
+        return SourcePayload(
+            frame=frame,
+            status=SourceRunStatus(
+                source=self.source,
+                state=self._combined_state(components),
+                rows=len(frame),
+                latency_ms=sum(status.latency_ms or 0 for status in components),
+                coverage_start=frame["disponivel_em"].min() if not frame.empty else None,
+                coverage_end=frame["disponivel_em"].max() if not frame.empty else None,
+                cache_hit=all(status.cache_hit for status in components),
+                message=f"{target.entity_label}: {len(frame)} eventos de segurança elegíveis.",
+            ),
+            metadata={"target": target.model_dump(mode="json"), "components": components},
+        )
+
+    async def fetch_many(
+        self, targets: Iterable[NHTSATarget], window: TimeWindow, concurrency: int = 3
+    ) -> SourcePayload:
+        """Consulta uma watchlist limitada sem sobrecarregar a API pública."""
+        target_list = list(targets)
+        if not target_list:
+            return SourcePayload(
+                frame=self._empty_frame(),
+                status=SourceRunStatus(
+                    source=self.source,
+                    state=SourceState.DEGRADED,
+                    rows=0,
+                    message="Watchlist NHTSA vazia; nenhuma consulta realizada.",
+                ),
+            )
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def fetch_limited(target: NHTSATarget) -> SourcePayload:
+            async with semaphore:
+                return await self.fetch_target(target, window)
+
+        payloads = await asyncio.gather(*(fetch_limited(target) for target in target_list))
+        frames = [payload.frame for payload in payloads if not payload.frame.empty]
+        frame = pd.concat(frames, ignore_index=True) if frames else self._empty_frame()
+        if not frame.empty:
+            frame = (
+                frame.drop_duplicates(["evento_id", "tipo_evento"]).sort_values("disponivel_em").reset_index(drop=True)
+            )
+        statuses = [payload.status for payload in payloads]
+        return SourcePayload(
+            frame=frame,
+            status=SourceRunStatus(
+                source=self.source,
+                state=self._combined_state(statuses),
+                rows=len(frame),
+                latency_ms=sum(status.latency_ms or 0 for status in statuses),
+                coverage_start=frame["disponivel_em"].min() if not frame.empty else None,
+                coverage_end=frame["disponivel_em"].max() if not frame.empty else None,
+                cache_hit=bool(statuses) and all(status.cache_hit for status in statuses),
+                message=f"Watchlist NHTSA: {len(target_list)} veículos; {len(frame)} eventos elegíveis.",
+            ),
+            metadata={"targets": [target.model_dump(mode="json") for target in target_list], "components": statuses},
         )
 
     async def _fetch_vehicle_events(
@@ -94,11 +167,9 @@ class NHTSAClient(BaseAPIClient):
         rows = []
         for record in records:
             date_value = (
-                record.get("ReportReceivedDate")
-                or record.get("dateComplaintFiled")
-                or record.get("reportDate")
+                record.get("ReportReceivedDate") or record.get("dateComplaintFiled") or record.get("reportDate")
             )
-            available_at = pd.to_datetime(date_value, errors="coerce")
+            available_at = NHTSAClient._parse_event_date(date_value, event_type)
             if pd.isna(available_at):
                 continue
             if available_at.tzinfo is not None:
@@ -125,8 +196,29 @@ class NHTSAClient(BaseAPIClient):
             rows, columns=["evento_id", "disponivel_em", "marca", "modelo", "ano_modelo", "tipo_evento"]
         )
 
+    @staticmethod
+    def _parse_event_date(value: object, event_type: str) -> pd.Timestamp:
+        """Normaliza os formatos distintos de data retornados por recalls e reclamações."""
+        preferred_format = "%d/%m/%Y" if event_type == "recall" else "%m/%d/%Y"
+        parsed = pd.to_datetime(value, format=preferred_format, errors="coerce")
+        return parsed if not pd.isna(parsed) else pd.to_datetime(value, errors="coerce")
+
     def _unavailable_payload(self, message: str) -> SourcePayload:
         return SourcePayload(
-            frame=pd.DataFrame(columns=["evento_id", "disponivel_em", "marca", "modelo", "ano_modelo", "tipo_evento"]),
+            frame=self._empty_frame(),
             status=SourceRunStatus(source=self.source, state=SourceState.UNAVAILABLE, rows=0, message=message),
         )
+
+    @staticmethod
+    def _empty_frame() -> pd.DataFrame:
+        return pd.DataFrame(columns=["evento_id", "disponivel_em", "marca", "modelo", "ano_modelo", "tipo_evento"])
+
+    @staticmethod
+    def _combined_state(statuses: list[SourceRunStatus]) -> SourceState:
+        if statuses and all(status.state == SourceState.UNAVAILABLE for status in statuses):
+            return SourceState.UNAVAILABLE
+        if any(status.state in {SourceState.UNAVAILABLE, SourceState.DEGRADED} for status in statuses):
+            return SourceState.DEGRADED
+        if statuses and all(status.state == SourceState.CACHED for status in statuses):
+            return SourceState.CACHED
+        return SourceState.FRESH

@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-08-14T13:42:03.956437+00:00",
+  "updated_at_utc": "2026-08-14T14:00:17.206870+00:00",
   "sources": {
     "fred": {
       "state": "degraded",
@@ -12,14 +12,24 @@
       "message": "TOTALSA carregada do snapshot local; macro online indisponível ou sem chave."
     },
     "feature_builder": {
-      "state": "degraded",
-      "rows": 19,
-      "requested_at_utc": "2026-08-14T13:42:03.810048+00:00",
+      "state": "fresh",
+      "rows": 184,
+      "requested_at_utc": "2026-08-14T14:00:15.452422+00:00",
       "latency_ms": null,
-      "coverage_start": "2025-01-01T00:00:00",
-      "coverage_end": "2026-07-01T00:00:00",
+      "coverage_start": null,
+      "coverage_end": null,
       "cache_hit": false,
       "message": "Features mensais construídas sem usar textos brutos nem observações futuras."
+    },
+    "nhtsa": {
+      "state": "fresh",
+      "rows": 1343,
+      "requested_at_utc": "2026-08-14T14:00:15.433498+00:00",
+      "latency_ms": 5023.584742000821,
+      "coverage_start": "2023-08-25T00:00:00",
+      "coverage_end": "2026-08-12T00:00:00",
+      "cache_hit": false,
+      "message": "Watchlist NHTSA: 6 veículos; 1343 eventos elegíveis."
     }
   }
 }

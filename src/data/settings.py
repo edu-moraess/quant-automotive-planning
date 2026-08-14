@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from config import DATA_DIR, ROOT_DIR
 
-from .contracts import NewsQuery
+from .contracts import NewsQuery, NHTSATarget
 
 
 class FeatureSourceConfig(BaseModel):
@@ -59,6 +59,16 @@ class FeatureSourceConfig(BaseModel):
                 brand="Tesla",
                 theme="production",
             ),
+        ]
+    )
+    nhtsa_targets: list[NHTSATarget] = Field(
+        default_factory=lambda: [
+            NHTSATarget(make="Ford", model="Maverick", model_year=2024),
+            NHTSATarget(make="Chevrolet", model="Silverado 1500", model_year=2024),
+            NHTSATarget(make="Toyota", model="RAV4", model_year=2024),
+            NHTSATarget(make="Honda", model="CR-V", model_year=2024),
+            NHTSATarget(make="Tesla", model="Model 3", model_year=2024),
+            NHTSATarget(make="Hyundai", model="IONIQ 5", model_year=2024),
         ]
     )
 

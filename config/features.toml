@@ -33,3 +33,33 @@ query = "Tesla AND production"
 brand = "Tesla"
 theme = "production"
 language = "en"
+
+[[nhtsa_targets]]
+make = "Ford"
+model = "Maverick"
+model_year = 2024
+
+[[nhtsa_targets]]
+make = "Chevrolet"
+model = "Silverado 1500"
+model_year = 2024
+
+[[nhtsa_targets]]
+make = "Toyota"
+model = "RAV4"
+model_year = 2024
+
+[[nhtsa_targets]]
+make = "Honda"
+model = "CR-V"
+model_year = 2024
+
+[[nhtsa_targets]]
+make = "Tesla"
+model = "Model 3"
+model_year = 2024
+
+[[nhtsa_targets]]
+make = "Hyundai"
+model = "IONIQ 5"
+model_year = 2024

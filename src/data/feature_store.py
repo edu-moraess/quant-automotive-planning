@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -60,6 +61,19 @@ class FeatureStore:
             temp_path.replace(file_path)
             written += len(partition)
         return written
+
+    def clear_source(self, source: SourceName) -> None:
+        """Remove partições de uma fonte antes de uma sincronização completa e validada."""
+        source_path = self.root / f"source={source.value}"
+        if source_path.exists():
+            shutil.rmtree(source_path)
+
+    def read_source(self, source: SourceName) -> pd.DataFrame:
+        """Lê todas as partições de uma fonte para agregações locais de baixo volume."""
+        source_path = self.root / f"source={source.value}"
+        files = sorted(source_path.rglob("data.parquet")) if source_path.exists() else []
+        frames = [pd.read_parquet(path) for path in files]
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
     def record_statuses(self, statuses: Iterable[SourceRunStatus]) -> None:
         """Atualiza o manifesto sem incluir credenciais ou respostas brutas."""

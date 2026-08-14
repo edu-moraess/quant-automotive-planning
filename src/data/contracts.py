@@ -78,6 +78,21 @@ class NewsQuery(BaseModel):
     language: str = "en"
 
 
+class NHTSATarget(BaseModel):
+    """Define um veículo observado na camada pública de risco e segurança."""
+
+    model_config = ConfigDict(frozen=True)
+
+    make: str = Field(min_length=2, max_length=80)
+    model: str = Field(min_length=1, max_length=100)
+    model_year: int = Field(ge=1981, le=2035)
+
+    @property
+    def entity_label(self) -> str:
+        """Retorna uma identificação compacta para logs e tabelas operacionais."""
+        return f"{self.make} {self.model} {self.model_year}"
+
+
 class SourceRunStatus(BaseModel):
     """Resume cobertura, latência e disponibilidade de uma execução de fonte."""
 
