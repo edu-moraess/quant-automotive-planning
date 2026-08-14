@@ -846,16 +846,6 @@ with st.sidebar:
                 st.session_state["market_analysis_run_id"] = st.session_state.get("market_analysis_run_id", 0) + 1
                 st.success("Forecast e planejamento atualizados.")
 
-    # --- Detalhes do feature store (expander discreto no rodapé) ---
-    with st.expander("Detalhe das fontes"):
-        if feature_status.empty:
-            st.caption("Aguardando a primeira atualização via botão acima.")
-        else:
-            st.dataframe(feature_status, hide_index=True, use_container_width=True)
-        if api_health_rows:
-            for row in api_health_rows:
-                st.caption(f"{row['icon']} {row['fonte']} — {row['status']} · {row['latência']}")
-
     st.markdown("---")
     st.markdown(f"[Mercado · FRED]({FRED_SERIES_URL})")
     st.markdown(f"[Produto · EPA]({EPA_DOWNLOAD_PAGE})")
