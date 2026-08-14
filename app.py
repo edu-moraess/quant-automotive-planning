@@ -755,7 +755,48 @@ nhtsa_risk_snapshot = load_nhtsa_risk_snapshot(feature_manifest_mtime)
 with st.sidebar:
     st.markdown("## QUANT")
     st.caption("Automotive Intelligence & Planning")
+
+    # --- Status das fontes de dados (topo da sidebar) ---
+    health_mtime = _API_HEALTH_PATH.stat().st_mtime if _API_HEALTH_PATH.exists() else 0.0
+    api_health_rows = load_api_health_status(health_mtime)
+    if api_health_rows:
+        status_line = " · ".join(f"{r['icon']} {r['fonte']}" for r in api_health_rows)
+        st.caption(status_line)
+    if feature_manifest.exists():
+        import zoneinfo  # noqa: PLC0415
+
+        _tz_sp = zoneinfo.ZoneInfo("America/Sao_Paulo")
+        _last_update = (
+            datetime.datetime.fromtimestamp(feature_manifest_mtime, tz=datetime.UTC)
+            .astimezone(_tz_sp)
+            .strftime("%d/%m/%Y %H:%M")
+        )
+        st.caption(f"⏱ Features: {_last_update} (SP)")
+
+    # Botão de atualização de features — usa chaves do Streamlit Cloud.
+    if st.button(
+        "↺ Atualizar features",
+        key="refresh_features_btn",
+        help="Executa health check e atualiza FRED · EIA · News · NHTSA com as chaves do Streamlit Cloud Secrets.",
+        use_container_width=True,
+    ):
+        with st.spinner("Verificando APIs e atualizando feature store..."):
+            try:
+                summary = run_feature_refresh_from_secrets()
+                st.success(
+                    f"Atualizado — {summary['market_feature_rows']} linhas de mercado, "
+                    f"{summary['event_feature_rows']} de eventos."
+                )
+                load_api_health_status.clear()
+                load_feature_source_status.clear()
+                load_nhtsa_risk_snapshot.clear()
+                st.rerun()
+            except Exception as _refresh_err:
+                st.error(f"Falha: {_refresh_err}")
+
     st.markdown("---")
+
+    # --- Formulário de produto (EPA) ---
     with st.form("product_filters"):
         st.markdown("### Universo de produto")
         selected_years = st.slider("Ano-modelo", min_value=year_bounds[0], max_value=year_bounds[1], value=year_bounds)
@@ -775,6 +816,7 @@ with st.sidebar:
         if product_updated:
             st.success("Recorte EPA aplicado nas abas de produto.")
 
+    # --- Formulário de forecast e planejamento ---
     with st.form("market_and_planning"):
         st.markdown("### Forecast")
         horizon = st.slider("Horizonte de projeção", 3, 18, 6)
@@ -806,57 +848,15 @@ with st.sidebar:
             st.session_state["market_analysis_run_id"] = st.session_state.get("market_analysis_run_id", 0) + 1
             st.success("Forecast e planejamento atualizados.")
 
-    with st.expander("Camada de features gratuitas"):
-        # Status das APIs (api_health.json).
-        health_mtime = _API_HEALTH_PATH.stat().st_mtime if _API_HEALTH_PATH.exists() else 0.0
-        api_health_rows = load_api_health_status(health_mtime)
-        if api_health_rows:
-            for row in api_health_rows:
-                st.caption(f"{row['icon']} **{row['fonte']}** — {row['status']} · {row['latência']}")
-        else:
-            st.caption("⚪ Status das APIs: não verificado ainda.")
-
-        # Última atualização do feature store — exibida no fuso de São Paulo.
-        if feature_manifest.exists():
-            import zoneinfo  # noqa: PLC0415
-
-            _tz_sp = zoneinfo.ZoneInfo("America/Sao_Paulo")
-            last_update = (
-                datetime.datetime.fromtimestamp(feature_manifest_mtime, tz=datetime.UTC)
-                .astimezone(_tz_sp)
-                .strftime("%d/%m/%Y %H:%M")
-            )
-            st.caption(f"⏱ Última atualização: {last_update} (SP)")
-
-        # Botão de atualização — usa as chaves configuradas no Streamlit Cloud.
-        if st.button(
-            "Atualizar features (FRED · EIA · News · NHTSA)",
-            key="refresh_features_btn",
-            help="Lê as chaves de API do Streamlit Cloud Secrets e atualiza o feature store local.",
-        ):
-            with st.spinner("Verificando APIs e atualizando feature store..."):
-                try:
-                    summary = run_feature_refresh_from_secrets()
-                    st.success(
-                        f"Feature store atualizado — "
-                        f"{summary['market_feature_rows']} linhas de mercado, "
-                        f"{summary['event_feature_rows']} de eventos."
-                    )
-                    # Invalida os caches de status para refletir a atualização.
-                    load_api_health_status.clear()
-                    load_feature_source_status.clear()
-                    load_nhtsa_risk_snapshot.clear()
-                    st.rerun()
-                except Exception as _refresh_err:
-                    st.error(f"Falha na atualização: {_refresh_err}")
-
-        st.markdown("---")
-        # Status do feature store (manifest.json).
+    # --- Detalhes do feature store (expander discreto no rodapé) ---
+    with st.expander("Detalhe das fontes"):
         if feature_status.empty:
             st.caption("Aguardando a primeira atualização via botão acima.")
         else:
             st.dataframe(feature_status, hide_index=True, use_container_width=True)
-            st.caption("O painel lê o manifesto local; o botão acima aciona as APIs externas.")
+        if api_health_rows:
+            for row in api_health_rows:
+                st.caption(f"{row['icon']} {row['fonte']} — {row['status']} · {row['latência']}")
 
     st.markdown("---")
     st.markdown(f"[Mercado · FRED]({FRED_SERIES_URL})")

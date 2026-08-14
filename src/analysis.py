@@ -30,7 +30,8 @@ from planning import build_scenario_table, build_sensitivity, decision_brief, de
 
 FRED_CSV_URL = SOURCES.fred_market_url
 FRED_SERIES_URL = "https://fred.stlouisfed.org/series/TOTALSA"
-FRED_REFRESH_SETTINGS = replace(SOURCES, request_timeout_seconds=4.0, max_attempts=2, retry_backoff_seconds=0.25)
+# Timeout generoso para o FRED: a API pode demorar mais de 4 s em horários de pico.
+FRED_REFRESH_SETTINGS = replace(SOURCES, request_timeout_seconds=12.0, max_attempts=3, retry_backoff_seconds=0.5)
 MODEL_NAMES = ["Referência sazonal", "Holt-Winters", "Regressão com defasagens", "AutoReg sazonal"]
 MODEL_COMPLEXITY = {
     "Referência sazonal": 1,
