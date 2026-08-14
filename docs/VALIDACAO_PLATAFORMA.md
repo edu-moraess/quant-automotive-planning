@@ -59,3 +59,23 @@ A correção visual foi validada. O texto superior foi reduzido para `Automotive
 Na primeira abertura após o reinício para validação da cobertura temporal, a página ainda estava concluindo a execução inicial do mercado; a inspeção visual do eixo será repetida após a renderização completa.
 
 A validação da aba **Mercado & Forecast** confirmou que a série FRED possui 607 observações até **07/2026**. O gráfico histórico passou a exibir o título `histórico até Jul/2026` e o texto da aba esclarece que a última marca do eixo representa o último mês disponível; as marcas anteriores em 1980, 1990, 2000, 2010 e 2020 são apenas referências decenais do eixo, não o fim dos dados.
+
+## Protocolo de desempenho da interface
+
+A validação de desempenho avaliará uma sessão limpa e uma sessão aquecida. Serão verificados: carregamento inicial do painel, acesso sequencial às sete abas, renderização de gráficos e tabelas de cada aba, atualização solicitada da série FRED, retorno por fallback quando aplicável, console do navegador e log do Streamlit. O critério de aprovação é a ausência de erro bloqueante, de tela em branco persistente, de travamento durante a troca de abas ou de exceção no log. Como as abas do Streamlit são renderizadas no ciclo inicial e alternadas no cliente, a navegação posterior deve apenas revelar conteúdo já preparado; a atualização FRED pode demandar rede, mas usa caches separados para evitar repetir backtest e planejamento quando a série não for alterada.
+
+### Navegação aquecida por abas
+
+A troca sequencial pelas sete abas foi concluída sem bloqueio. O navegador encontrou painel associado e conteúdo não vazio em todas as abas. O tempo de resposta de dois frames variou de **59,9 ms** a **218,3 ms**: Resumo 199,7 ms; Portfólio 157,1 ms; Energia & Combustível 154,2 ms; Mercado & Forecast 59,9 ms; Modelos integrados 218,3 ms; Planejamento 148,7 ms; Método & Dados 189,8 ms. Não houve erro JavaScript. O console registrou apenas dois avisos não bloqueantes de KaTeX para o caractere acentuado `ç` em um trecho de modo matemático; isso não interrompeu a renderização nem a navegação.
+
+Antes do teste de atualização, a caixa `Consultar FRED online na próxima atualização` foi verificada no DOM: está habilitada e inicialmente desmarcada. A navegação entre abas continuou funcional enquanto a aba Método & Dados estava ativa.
+
+### Atualização FRED observada na interface
+
+O teste completo da interação lateral foi concluído: a caixa foi marcada, o formulário foi submetido e a interface retornou em estado funcional, sem tela em branco ou erro. A atualização online do FRED foi concluída em **3,0 s** às 10:52 UTC, retornando 607 observações de 1976-01 a 2026-07. A fonte online coincidiu com o snapshot, portanto o painel preservou os resultados analíticos e reaproveitou a modelagem conforme projetado.
+
+### Sessão limpa após migração de largura
+
+Após reinicialização do Streamlit com log limpo, a sessão inicial concluiu o carregamento e exibiu o Resumo sem erro ou tela em branco persistente. O painel apresentou controles laterais, status FRED, abas e conteúdo do Resumo normalmente.
+
+A segunda passagem sequencial, executada em sessão limpa, confirmou responsividade em todas as abas: Resumo 37,9 ms; Portfólio 149,2 ms; Energia & Combustível 167,1 ms; Mercado & Forecast 101,8 ms; Modelos integrados 162,3 ms; Planejamento 131,1 ms; Método & Dados 67,8 ms. Todos os painéis foram selecionados e tiveram conteúdo não vazio. Após a migração para `width="stretch"`, os avisos de `use_container_width` deixaram de aparecer. Permaneceram somente dois avisos KaTeX de texto acentuado em modo matemático, sem erro ou bloqueio de interface.

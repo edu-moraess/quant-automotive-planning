@@ -649,7 +649,7 @@ with st.sidebar:
             backlog_cost = st.number_input("Backlog", 0, 200_000, 45_000, 500)
             safety_stock_penalty = st.number_input("Desvio de segurança", 0, 50_000, 1_000, 100)
             setup_cost = st.number_input("Setup mensal", 0, 1_000_000, 0, 5_000)
-        if st.form_submit_button("Atualizar análise", use_container_width=True):
+        if st.form_submit_button("Atualizar análise", width="stretch"):
             st.session_state["market_analysis_run_id"] = st.session_state.get("market_analysis_run_id", 0) + 1
     st.markdown("---")
     st.markdown(f"[Mercado · FRED]({FRED_SERIES_URL})")
@@ -789,9 +789,9 @@ with tab_summary:
     compact_fact("MAPE fora da amostra", f"{winner_metrics['mape_medio']:.2f}%")
     compact_fact("Mix eletrificado", fmt_pct(kpis["eletrificados_pct"]))
     st.plotly_chart(
-        forecast_chart(history, forecast, winner), use_container_width=True, config=PLOT_CONFIG, key="summary_forecast"
+        forecast_chart(history, forecast, winner), width="stretch", config=PLOT_CONFIG, key="summary_forecast"
     )
-    st.plotly_chart(brand_bar_chart(brands), use_container_width=True, config=PLOT_CONFIG, key="summary_brand_bar")
+    st.plotly_chart(brand_bar_chart(brands), width="stretch", config=PLOT_CONFIG, key="summary_brand_bar")
     st.markdown(
         '<div class="note"><strong>Escopo.</strong> O forecast representa mercado agregado. O gráfico de marcas conta configurações EPA no filtro; não mede vendas nem participação comercial.</div>',
         unsafe_allow_html=True,
@@ -803,10 +803,8 @@ with tab_portfolio:
     vertical_metric("Modelos no filtro", fmt_int(kpis["modelos"]))
     vertical_metric("Segmentos EPA no filtro", fmt_int(filtered["VClass"].nunique()))
     vertical_metric("Eficiência média no filtro", f"{fmt_decimal(kpis['mpg_medio'])} MPG/MPGe")
-    st.plotly_chart(
-        brand_position_chart(brands), use_container_width=True, config=PLOT_CONFIG, key="portfolio_position"
-    )
-    st.plotly_chart(segment_chart(segments), use_container_width=True, config=PLOT_CONFIG, key="portfolio_segments")
+    st.plotly_chart(brand_position_chart(brands), width="stretch", config=PLOT_CONFIG, key="portfolio_position")
+    st.plotly_chart(segment_chart(segments), width="stretch", config=PLOT_CONFIG, key="portfolio_segments")
     st.markdown("#### Scorecard de marcas")
     brand_display = brands.nlargest(20, "configuracoes").rename(
         columns={
@@ -844,7 +842,7 @@ with tab_portfolio:
                 "Mix eletrificado (%)": "{:.1f}%",
             }
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     with st.expander("Registro temporal completo de marcas EPA"):
@@ -862,7 +860,7 @@ with tab_portfolio:
             registry_display.style.format(
                 {"Configurações": "{:,.0f}", "Modelos": "{:,.0f}", "Primeiro ano": "{:.0f}", "Último ano": "{:.0f}"}
             ),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=440,
         )
@@ -888,12 +886,8 @@ with tab_energy:
         '<div class="note"><strong>Unidades e escopo.</strong> Gasolina e diesel usam séries nacionais em US$/galão. Elétricos a bateria usam preço médio urbano nacional em US$/kWh e o consumo `combE` da EPA. Híbridos plug-in e combustíveis sem série harmonizada permanecem fora do cálculo por 100 milhas para não introduzir premissas artificiais.</div>',
         unsafe_allow_html=True,
     )
-    st.plotly_chart(
-        price_index_chart(price_index), use_container_width=True, config=PLOT_CONFIG, key="energy_price_index"
-    )
-    st.plotly_chart(
-        energy_cost_chart(energy_by_source), use_container_width=True, config=PLOT_CONFIG, key="energy_cost_100mi"
-    )
+    st.plotly_chart(price_index_chart(price_index), width="stretch", config=PLOT_CONFIG, key="energy_price_index")
+    st.plotly_chart(energy_cost_chart(energy_by_source), width="stretch", config=PLOT_CONFIG, key="energy_cost_100mi")
     st.markdown("#### Sensibilidade a choque de preço de energia")
     sensitivity_energy_display = energy_sensitivity.rename(
         columns={
@@ -906,7 +900,7 @@ with tab_energy:
         sensitivity_energy_display.style.format(
             {"Choque de preço (%)": "{:.0f}%", "Custo mediano por 100 mi (US$)": "US$ {:.2f}"}
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.caption(
@@ -937,12 +931,10 @@ with tab_energy:
                 "Energia por 100 mi (US$)": "US$ {:.2f}",
             }
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
-    st.plotly_chart(
-        correlation_chart(correlations), use_container_width=True, config=PLOT_CONFIG, key="energy_correlation"
-    )
+    st.plotly_chart(correlation_chart(correlations), width="stretch", config=PLOT_CONFIG, key="energy_correlation")
     st.markdown("#### Associações mais fortes")
     pair_display = strong_pairs.rename(
         columns={
@@ -954,7 +946,7 @@ with tab_energy:
     )
     st.dataframe(
         pair_display.style.format({"ρ Spearman": "{:.2f}", "Observações válidas": "{:,.0f}"}),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.caption(
@@ -1019,7 +1011,7 @@ with tab_energy:
                     "Custo EPA anual (US$)": "US$ {:,.0f}",
                 }
             ),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
     else:
@@ -1034,10 +1026,8 @@ with tab_market:
     vertical_metric("MAPE médio", f"{winner_metrics['mape_medio']:.2f}%")
     vertical_metric("MAE médio", f"{winner_metrics['mae_medio']:.3f} milhões SAAR")
     vertical_metric("Horizonte", f"{horizon} meses")
-    st.plotly_chart(history_chart(history), use_container_width=True, config=PLOT_CONFIG, key="market_history")
-    st.plotly_chart(
-        backtest_chart(summary, winner), use_container_width=True, config=PLOT_CONFIG, key="market_backtest"
-    )
+    st.plotly_chart(history_chart(history), width="stretch", config=PLOT_CONFIG, key="market_history")
+    st.plotly_chart(backtest_chart(summary, winner), width="stretch", config=PLOT_CONFIG, key="market_backtest")
     st.dataframe(
         summary_display.style.format(
             {
@@ -1051,7 +1041,7 @@ with tab_market:
                 "tempo_medio_s": "{:.3f}",
             }
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     vertical_metric(
@@ -1066,16 +1056,14 @@ with tab_market:
     )
     with st.expander("Diagnóstico residual e decomposição"):
         st.plotly_chart(
-            residual_chart(backtest["residuals"]), use_container_width=True, config=PLOT_CONFIG, key="market_residuals"
+            residual_chart(backtest["residuals"]), width="stretch", config=PLOT_CONFIG, key="market_residuals"
         )
-        st.plotly_chart(
-            acf_chart(backtest["residual_acf"]), use_container_width=True, config=PLOT_CONFIG, key="market_acf"
-        )
+        st.plotly_chart(acf_chart(backtest["residual_acf"]), width="stretch", config=PLOT_CONFIG, key="market_acf")
         st.dataframe(
             backtest["ljung_box"]
             .rename(columns={"lb_stat": "Estatística Ljung-Box", "lb_pvalue": "p-valor"})
             .style.format({"Estatística Ljung-Box": "{:.3f}", "p-valor": "{:.4f}"}),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
         residual_info = backtest["residual_diagnostics"]
@@ -1098,7 +1086,7 @@ with tab_market:
                 },
             ]
         )
-        st.dataframe(diagnostics_display.style.format({"Valor": "{:.4f}"}), use_container_width=True, hide_index=True)
+        st.dataframe(diagnostics_display.style.format({"Valor": "{:.4f}"}), width="stretch", hide_index=True)
 
 with tab_models:
     st.markdown("### Modelos integrados: energia, mercado e eficiência")
@@ -1116,7 +1104,7 @@ with tab_models:
     )
     st.plotly_chart(
         econometric_validation_chart(econometric_validation),
-        use_container_width=True,
+        width="stretch",
         config=PLOT_CONFIG,
         key="models_econometric_validation",
     )
@@ -1126,12 +1114,12 @@ with tab_models:
     )
     st.dataframe(
         coefficient_display.style.format({"Coeficiente padronizado": "{:.3f}", "p-valor": "{:.4f}"}),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.markdown("#### Diagnóstico de multicolinearidade")
     vif_display = econometric_vif.rename(columns={"variavel": "Variável", "vif": "VIF"})
-    st.dataframe(vif_display.style.format({"VIF": "{:.2f}"}), use_container_width=True, hide_index=True)
+    st.dataframe(vif_display.style.format({"VIF": "{:.2f}"}), width="stretch", hide_index=True)
     st.caption(
         "VIF alto sinaliza que coeficientes individuais podem ser instáveis. Por isso, a OLS é exibida como análise explicativa e não como mecanismo de previsão operacional."
     )
@@ -1154,7 +1142,7 @@ with tab_models:
     )
     st.plotly_chart(
         neural_validation_chart(neural_validation),
-        use_container_width=True,
+        width="stretch",
         config=PLOT_CONFIG,
         key="models_neural_validation",
     )
@@ -1168,7 +1156,7 @@ with tab_models:
     )
     st.dataframe(
         importance_display.style.format({"Incremento de MAE": "{:.3f}", "Desvio": "{:.3f}"}),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.caption(
@@ -1187,7 +1175,7 @@ with tab_models:
         error_powertrain_display.style.format(
             {"Configurações": "{:,.0f}", "MAE": "{:.2f}", "Mediana do erro": "{:.2f}"}
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.markdown("#### Maiores erros de validação da rede neural")
@@ -1206,7 +1194,7 @@ with tab_models:
         neural_display.style.format(
             {"Ano": "{:.0f}", "MPG/MPGe observado": "{:.1f}", "MPG/MPGe previsto": "{:.1f}", "Erro absoluto": "{:.1f}"}
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -1226,11 +1214,11 @@ with tab_planning:
         unsafe_allow_html=True,
     )
     st.plotly_chart(
-        production_chart(plan, int(capacity)), use_container_width=True, config=PLOT_CONFIG, key="planning_production"
+        production_chart(plan, int(capacity)), width="stretch", config=PLOT_CONFIG, key="planning_production"
     )
     st.plotly_chart(
         sensitivity_chart(production["sensitivity"]),
-        use_container_width=True,
+        width="stretch",
         config=PLOT_CONFIG,
         key="planning_sensitivity",
     )
@@ -1263,14 +1251,14 @@ with tab_planning:
                 "Custo total (US$)": "US$ {:,.0f}",
             }
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     with st.expander("Hipóteses operacionais e plano mensal"):
         assumptions_display = pd.DataFrame(
             [{"Hipótese": key, "Valor": value} for key, value in production["assumptions"].__dict__.items()]
         )
-        st.dataframe(assumptions_display, use_container_width=True, hide_index=True)
+        st.dataframe(assumptions_display, width="stretch", hide_index=True)
         plan_display = plan.rename(
             columns={
                 "data": "Data",
@@ -1309,7 +1297,7 @@ with tab_planning:
                     "Utilização regular (%)": "{:.1f}%",
                 }
             ),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
         st.download_button(
@@ -1336,7 +1324,7 @@ with tab_method:
             ],
         }
     )
-    st.dataframe(source_table, use_container_width=True, hide_index=True)
+    st.dataframe(source_table, width="stretch", hide_index=True)
     st.markdown("### Saúde e proveniência dos snapshots")
     health_display = data_health.rename(
         columns={
@@ -1378,7 +1366,7 @@ with tab_method:
                 "Lacunas mensais": "{:.0f}",
             }
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.caption(
@@ -1396,7 +1384,7 @@ with tab_method:
         ]
         st.dataframe(
             health_display[provenance_columns].style.format({"Colunas": "{:,.0f}", "Outliers IQR": "{:,.0f}"}),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
     st.markdown("### Fórmulas e interpretação")
