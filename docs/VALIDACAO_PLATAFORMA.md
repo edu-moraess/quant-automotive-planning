@@ -91,3 +91,7 @@ A única oportunidade de rede fora do FRED de mercado estava no script offline d
 Após reinicialização do Streamlit, a aplicação carregou em sessão limpa usando o snapshot FRED e preservou o modelo vencedor, o histórico e os controles. A validação visual da aba de mercado segue para confirmar a apresentação da calibração prequential adicionada ao backtest.
 
 A aba **Mercado & Forecast** foi validada em sessão limpa. O modelo vencedor permaneceu **Regressão com defasagens**, com MAPE médio de 3,97%; a nova leitura exibiu cobertura prequential p10–p90 de 66,7% sobre 18 observações em três dobras e pinball loss prequential de 0,275. A interface explicitou que cada dobra usa apenas resíduos de dobras anteriores, sem erro de renderização.
+
+### Fluxos independentes da barra lateral
+
+A barra lateral foi dividida em dois formulários. **Aplicar recorte de produto** confirmou visualmente a atualização das abas de produto e o status global do recorte EPA. **Atualizar forecast e planejamento** confirmou de forma independente a execução do bloco quantitativo. A sessão permaneceu estável, e o estado padrão declarou explicitamente 50.242 configurações EPA no intervalo 1984–2027.
