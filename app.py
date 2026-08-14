@@ -20,11 +20,21 @@ sys.path.insert(0, str(ROOT / "src"))
 import analysis as analysis_module  # noqa: E402
 import energy_intelligence as energy_module  # noqa: E402
 import vehicle_intelligence as vehicle_module  # noqa: E402
-from config import DATA_DIR, ENERGY_SNAPSHOT, EPA_SNAPSHOT, MARKET_SNAPSHOT, MODEL_ARTIFACTS_DIR  # noqa: E402
+from config import (  # noqa: E402
+    DATA_DIR,
+    ENERGY_SNAPSHOT,
+    EPA_SNAPSHOT,
+    MARKET_SNAPSHOT,
+    MODEL_ARTIFACTS_DIR,
+    PlanningAssumptions,
+)
 from data import FeatureBuilder, FeatureSettings, SourceName, TimeWindow, load_feature_source_config  # noqa: E402
 from data.api_health import HealthReport, run_health_check  # noqa: E402
 from data.feature_store import FeatureStore  # noqa: E402
+from decision_intelligence import build_decision_intelligence  # noqa: E402
 from presentation import fmt_month_display, format_temporal_display  # noqa: E402
+from risk_engine import MonteCarloConfig, run_risk_engine  # noqa: E402
+from robust_planning import RobustPlanningConfig, optimize_under_uncertainty  # noqa: E402
 from scenarios import energy_price_sensitivity  # noqa: E402
 
 FRED_SERIES_URL = analysis_module.FRED_SERIES_URL
@@ -280,6 +290,79 @@ def run_planning_cached(
         safety_stock_penalty=safety_stock_penalty,
         setup_cost=setup_cost,
     )
+
+
+@st.cache_data(show_spinner=False)
+def run_risk_cached(
+    simulations: np.ndarray,
+    participation: float,
+    capacity: int,
+    initial_inventory: int,
+    backlog_cost: float,
+    overtime_capacity: int,
+    n_simulations: int = 5_000,
+    seed: int = 42,
+) -> dict:
+    """Calcula risco operacional sem chamar o solver PuLP em cada rerun da interface."""
+    assumptions = PlanningAssumptions(
+        participation=participation,
+        regular_capacity=capacity,
+        overtime_capacity=overtime_capacity,
+        initial_inventory=initial_inventory,
+        backlog_cost=backlog_cost,
+    )
+    result = run_risk_engine(
+        simulations,
+        assumptions,
+        market_share=participation,
+        config=MonteCarloConfig(n_simulations=n_simulations, seed=seed),
+    )
+    return {"metrics": result.metrics, "risk_table": result.risk_table, "metadata": result.metadata}
+
+
+@st.cache_data(show_spinner=False)
+def run_robust_planning_cached(
+    simulations: np.ndarray,
+    participation: float,
+    capacity: int,
+    initial_inventory: int,
+    production_cost: float,
+    inventory_cost: float,
+    backlog_cost: float,
+    overtime_capacity: int,
+    overtime_cost: float,
+    safety_stock: int,
+    safety_stock_penalty: float,
+    setup_cost: float,
+    n_paths: int,
+    seed: int = 42,
+) -> dict:
+    """Resolve amostra de caminhos com PuLP somente quando o usuário ativa a opção."""
+    assumptions = PlanningAssumptions(
+        participation=participation,
+        regular_capacity=capacity,
+        overtime_capacity=overtime_capacity,
+        initial_inventory=initial_inventory,
+        production_cost=production_cost,
+        inventory_cost=inventory_cost,
+        backlog_cost=backlog_cost,
+        safety_stock=safety_stock,
+        safety_stock_penalty=safety_stock_penalty,
+        setup_cost=setup_cost,
+        overtime_cost=overtime_cost,
+    )
+    result = optimize_under_uncertainty(
+        simulations,
+        assumptions,
+        market_share=participation,
+        config=RobustPlanningConfig(n_paths_to_optimize=n_paths, seed=seed),
+    )
+    return {
+        "metrics": result["metrics"],
+        "summary": result["summary"],
+        "metadata": result["metadata"],
+        "representative_solutions": result["representative_solutions"],
+    }
 
 
 PLOT_CONFIG = {
@@ -817,6 +900,8 @@ with st.sidebar:
                 st.success("Recorte EPA aplicado.")
 
     # --- Formulário de forecast e planejamento — colapsável ---
+    robust_planning_enabled = False
+    robust_paths = 50
     with st.expander("📈 Forecast & Planejamento", expanded=False):
         with st.form("market_and_planning"):
             st.markdown("**Forecast**")
@@ -841,6 +926,13 @@ with st.sidebar:
                 backlog_cost = st.number_input("Backlog", 0, 200_000, 45_000, 500)
                 safety_stock_penalty = st.number_input("Desvio de segurança", 0, 50_000, 1_000, 100)
                 setup_cost = st.number_input("Setup mensal", 0, 1_000_000, 0, 5_000)
+            st.markdown("**Risco e otimização robusta**")
+            robust_planning_enabled = st.checkbox(
+                "Resolver amostra de caminhos com PuLP",
+                value=False,
+                help="Ativa a integração Monte Carlo → PuLP. O custo computacional cresce com o número de caminhos.",
+            )
+            robust_paths = st.slider("Caminhos a otimizar", 10, 200, 50, 10, disabled=not robust_planning_enabled)
             market_updated = st.form_submit_button("Atualizar forecast e planejamento", width="stretch")
             if market_updated:
                 st.session_state["market_analysis_run_id"] = st.session_state.get("market_analysis_run_id", 0) + 1
@@ -877,9 +969,10 @@ try:
             allow_online,
         )
         market_model = run_forecast_cached(market_source["data"], n_folds, test_size, horizon)
+        participation = participation_pct / 100
         production = run_planning_cached(
             market_model["forecast"],
-            participation_pct / 100,
+            participation,
             int(capacity),
             int(initial_inventory),
             float(production_cost),
@@ -891,10 +984,39 @@ try:
             float(safety_stock_penalty),
             float(setup_cost),
         )
+        risk = run_risk_cached(
+            market_model["simulations"],
+            participation,
+            int(capacity),
+            int(initial_inventory),
+            float(backlog_cost),
+            int(overtime_capacity),
+        )
+        robust = (
+            run_robust_planning_cached(
+                market_model["simulations"],
+                participation,
+                int(capacity),
+                int(initial_inventory),
+                float(production_cost),
+                float(inventory_cost),
+                float(backlog_cost),
+                int(overtime_capacity),
+                float(overtime_cost),
+                int(safety_stock),
+                float(safety_stock_penalty),
+                float(setup_cost),
+                int(robust_paths),
+            )
+            if robust_planning_enabled
+            else None
+        )
         market = {
             **market_source,
             **market_model,
             "production": production,
+            "risk": risk,
+            "robust_planning": robust,
             "parameters": {"bootstrap_method": market_model["forecast"].attrs.get("bootstrap_method")},
         }
 except Exception as error:
@@ -912,8 +1034,22 @@ winner = backtest["winner"]
 summary_display = summary.copy()
 winner_metrics = summary.loc[summary["modelo"].eq(winner)].iloc[0]
 base_scenario = scenarios.loc[scenarios["Cenário"] == "Base"].iloc[0]
-decision = production["decision"]
+planning_decision = production["decision"]
 market_refresh = market["market_refresh"]
+risk = market["risk"]
+robust_planning = market["robust_planning"]
+decision_intelligence = build_decision_intelligence(
+    forecast_metrics={
+        "mape_pct": float(winner_metrics["mape_medio"]),
+        "coverage_p10_p90": backtest["prequential_interval_quality"].get("coverage_p10_p90"),
+    },
+    risk_metrics=risk["metrics"],
+    robust_metrics=robust_planning["metrics"]
+    if robust_planning is not None
+    else {"optimization_status": "not_integrated"},
+    scenario_table=scenarios,
+    assumptions={"market_share_status": "assumed"},
+)
 market_source_caption = (
     f"Série FRED em uso: {market_refresh['source_label']} · "
     f"{fmt_int(market_refresh['observations'])} observações · "
@@ -968,17 +1104,62 @@ with st.expander(source_status):
     st.caption("A série FRED alimenta Resumo, Mercado & Forecast e Planejamento.")
 st.caption(product_scope_caption)
 
-tab_summary, tab_portfolio, tab_energy, tab_market, tab_models, tab_planning, tab_method = st.tabs(
-    [
-        "Resumo",
-        "Portfólio",
-        "Energia & Combustível",
-        "Mercado & Forecast",
-        "Modelos integrados",
-        "Planejamento",
-        "Método & Dados",
-    ]
+tab_decision, tab_summary, tab_portfolio, tab_energy, tab_market, tab_models, tab_risk, tab_planning, tab_method = (
+    st.tabs(
+        [
+            "Decisão",
+            "Resumo",
+            "Portfólio",
+            "Energia & Combustível",
+            "Mercado & Forecast",
+            "Modelos integrados",
+            "Risco & Cenários",
+            "Planejamento",
+            "Método & Dados",
+        ]
+    )
 )
+
+with tab_decision:
+    st.markdown("### Decisão executiva")
+    vertical_metric("Status decisório", decision_intelligence["decision_status"].upper())
+    vertical_metric(
+        "Confiança da leitura",
+        str(decision_intelligence["confidence"]["level"]).upper(),
+        fmt_decimal(decision_intelligence["confidence"]["score"], 2)
+        if decision_intelligence["confidence"]["score"] is not None
+        else None,
+    )
+    st.markdown(
+        f'<div class="insight"><strong>Leitura.</strong> {decision_intelligence["decision_label"]}</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("#### Sinais quantitativos")
+    signal_display = decision_intelligence["signals"].copy()
+    st.dataframe(
+        signal_display[["label", "status", "value", "threshold", "unit", "source"]].rename(
+            columns={
+                "label": "Sinal",
+                "status": "Status",
+                "value": "Valor",
+                "threshold": "Limiar",
+                "unit": "Unidade",
+                "source": "Origem",
+            }
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+    st.markdown("#### Ações condicionais")
+    for action in decision_intelligence["actions"]:
+        st.markdown(
+            f'<div class="note"><strong>{action["priority"].upper()}.</strong> {action["action"]}<br>'
+            f"<span>{action['basis']}</span></div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("#### Limitações de interpretação")
+    for limitation in decision_intelligence["limitations"]:
+        st.caption(f"• {limitation}")
 
 with tab_summary:
     st.markdown("### Resumo executivo")
@@ -1503,6 +1684,33 @@ with tab_models:
         hide_index=True,
     )
 
+with tab_risk:
+    st.markdown("### Risco & Cenários")
+    risk_metrics = risk["metrics"]
+    vertical_metric("Probabilidade de stockout", fmt_pct(float(risk_metrics["stockout_probability"]) * 100))
+    vertical_metric("Backlog esperado", fmt_int(risk_metrics["expected_backlog_units"]))
+    vertical_metric("Capacity-at-risk P95", fmt_int(risk_metrics["capacity_at_risk_units"]))
+    vertical_metric("VaR 95%", fmt_usd(risk_metrics["VaR_95"]))
+    vertical_metric("CVaR 95%", fmt_usd(risk_metrics["CVaR_95"]))
+    st.caption(
+        "Risco calculado sobre caminhos de forecast; market share é hipótese assumida. "
+        "VaR/CVaR representam custo de backlog sob a política de capacidade declarada."
+    )
+    st.dataframe(risk["risk_table"], width="stretch", hide_index=True)
+    if robust_planning is None:
+        st.info(
+            "A otimização robusta está desativada. Ative-a no expander Forecast & Planejamento para resolver caminhos com PuLP."
+        )
+    else:
+        st.markdown("#### Resultado da otimização robusta")
+        vertical_metric("Caminhos resolvidos", fmt_int(robust_planning["metrics"]["n_paths_optimized"]))
+        vertical_metric(
+            "Probabilidade de backlog final",
+            fmt_pct(float(robust_planning["metrics"]["probability_backlog_final"]) * 100),
+        )
+        vertical_metric("Utilização P95", fmt_pct(float(robust_planning["metrics"]["capacity_at_risk_pct"])))
+        st.dataframe(robust_planning["summary"], width="stretch", hide_index=True)
+
 with tab_planning:
     st.markdown("### Capacidade, estoque e nível de serviço")
     st.caption(
@@ -1515,7 +1723,7 @@ with tab_planning:
     vertical_metric("Produção extra Base", fmt_int(base_scenario["Produção extra (veículos)"]))
     vertical_metric("Backlog final Base", fmt_int(base_scenario["Demanda pendente final"]))
     st.markdown(
-        f'<div class="insight"><strong>Ação sugerida.</strong> {decision["acao_recomendada"]}<br><strong>Risco.</strong> {decision["risco_principal"]}</div>',
+        f'<div class="insight"><strong>Ação sugerida.</strong> {planning_decision["acao_recomendada"]}<br><strong>Risco.</strong> {planning_decision["risco_principal"]}</div>',
         unsafe_allow_html=True,
     )
     st.plotly_chart(
