@@ -52,19 +52,19 @@ PURPLE = "#6959CD"
 MUTED = "#667085"
 GRID = "#E5EAF0"
 
-# Paleta analítica: contraste elevado, semântica estável e exportação legível.
-CHART_BG = "#0B1220"
-CHART_SURFACE = "#111B2E"
-CHART_TEXT = "#E7EEF8"
-CHART_MUTED = "#9AABC1"
-CHART_GRID = "#2A3950"
-CHART_BORDER = "#314158"
-HISTORY = "#A7B5C8"
-ACCENT = "#38BDF8"
-SIGNAL = "#2DD4BF"
-ALERT = "#F2B85B"
-RISK = "#FB7185"
-PURPLE_SIGNAL = "#A78BFA"
+# Paleta analítica: semântica consistente e contraste equilibrado sobre fundo claro.
+CHART_BG = "#FFFFFF"
+CHART_SURFACE = "#FFFFFF"
+CHART_TEXT = PRIMARY
+CHART_MUTED = MUTED
+CHART_GRID = GRID
+CHART_BORDER = GRID
+HISTORY = "#4D627B"
+ACCENT = "#1678B5"
+SIGNAL = "#008A8A"
+ALERT = "#B86E12"
+RISK = "#B93856"
+PURPLE_SIGNAL = "#6959CD"
 MARKET_SOURCE_CACHE_SCHEMA_VERSION = 1
 
 ENERGY_COLORS = {
@@ -195,8 +195,8 @@ st.markdown(
       .stTabs [data-baseweb="tab-list"] { gap: 3px; border-bottom: 1px solid #DCE3EA; overflow-x: auto; }
       .stTabs [data-baseweb="tab"] { min-height: 45px; padding: 0 11px; color: #667085; font-weight: 600; font-size: .85rem; }
       .stTabs [aria-selected="true"] { color: #14213D; border-bottom-color: #E87532; }
-      div[data-testid="stPlotlyChart"] { background: #0B1220; border: 1px solid #D9E2EC; border-radius: 7px; overflow: hidden; box-shadow: 0 10px 24px rgba(15, 23, 42, .10); margin: 10px 0 22px; }
-      div[data-testid="stPlotlyChart"] > div { border-radius: 6px; }
+      div[data-testid="stPlotlyChart"] { background: #FFFFFF; border: 1px solid #E5EAF0; border-radius: 7px; overflow: hidden; box-shadow: 0 6px 16px rgba(20, 33, 61, .05); margin: 10px 0 22px; }
+      div[data-testid="stPlotlyChart"] > div { background: #FFFFFF; border-radius: 6px; }
       /* Controles Plotly: ficam invisíveis até o hover, verticais, transparentes e fora das legendas. */
       .js-plotly-plot .plotly .modebar { display: flex !important; flex-direction: column !important; gap: 1px !important; background: transparent !important; top: 58px !important; right: 6px !important; left: auto !important; }
       .js-plotly-plot .plotly .modebar-group { display: flex !important; flex-direction: column !important; background: transparent !important; margin: 0 !important; }
@@ -245,8 +245,8 @@ def compact_fact(label: str, value: str, detail: str | None = None) -> None:
 def style_chart(fig: go.Figure, height: int = 420, legend: bool = True) -> go.Figure:
     fig.update_layout(
         height=height,
-        template="plotly_dark",
-        paper_bgcolor=CHART_BG,
+        template="plotly_white",
+        paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor=CHART_BG,
         font={"family": "DM Sans, sans-serif", "color": CHART_TEXT, "size": 12},
         title={
@@ -274,21 +274,17 @@ def style_chart(fig: go.Figure, height: int = 420, legend: bool = True) -> go.Fi
     )
     fig.update_xaxes(
         showgrid=False,
-        showline=True,
-        linecolor=CHART_BORDER,
+        showline=False,
         tickfont={"color": CHART_MUTED, "size": 10},
         title_font={"color": CHART_MUTED, "size": 11},
         zeroline=False,
     )
     fig.update_yaxes(
-        showgrid=True,
-        gridcolor=CHART_GRID,
-        griddash="dot",
-        showline=True,
-        linecolor=CHART_BORDER,
+        showgrid=False,
+        showline=False,
         tickfont={"color": CHART_MUTED, "size": 10},
         title_font={"color": CHART_MUTED, "size": 11},
-        zerolinecolor=CHART_BORDER,
+        zeroline=False,
     )
     fig.update_coloraxes(
         colorbar={
