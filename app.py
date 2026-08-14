@@ -160,15 +160,19 @@ st.markdown(
       [data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid #E5EAF0; }
       .block-container { max-width: 1120px; padding-top: 1.1rem; padding-bottom: 3rem; }
       h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; color: #14213D; letter-spacing: -0.025em; }
-      .hero { background: linear-gradient(112deg, #14213D 0%, #1F4E79 68%, #2D75B3 100%); border-radius: 14px; color: #fff; padding: 18px 24px; margin-bottom: 10px; box-shadow: 0 9px 22px rgba(20,33,61,.10); }
-      .hero .eyebrow { font-size: .68rem; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; opacity: .78; margin-bottom: 8px; }
-      .hero h1 { color: #fff; margin: 0; font-size: 1.55rem; line-height: 1.15; }
-      .hero p { margin: 6px 0 0; color: rgba(255,255,255,.86); line-height: 1.45; max-width: 850px; font-size: .92rem; }
+      .hero { background: linear-gradient(112deg, #14213D 0%, #1F4E79 68%, #2D75B3 100%); border-radius: 14px; color: #fff; padding: 16px 22px; margin-bottom: 9px; box-shadow: 0 9px 22px rgba(20,33,61,.10); }
+      .hero h1 { color: #fff; margin: 0; font-size: 1.4rem; line-height: 1.15; }
+      .hero p { margin: 5px 0 0; color: rgba(255,255,255,.86); line-height: 1.42; max-width: 850px; font-size: .88rem; }
       .section-kicker { color: #E87532; font-weight: 700; font-size: .7rem; letter-spacing: .13em; text-transform: uppercase; margin-top: 7px; }
       .section-title { font-family: 'Space Grotesk', sans-serif; color: #14213D; font-size: 1.35rem; font-weight: 700; margin: 4px 0 12px; }
       .insight { background: #FFFFFF; border: 1px solid #E5EAF0; border-left: 4px solid #E87532; border-radius: 10px; padding: 14px 17px; color: #344054; line-height: 1.55; margin: 12px 0 18px; }
       .note { background: #EEF5FC; border: 1px solid #D7E5F4; border-radius: 10px; padding: 13px 15px; color: #294D70; line-height: 1.5; font-size: .9rem; margin: 12px 0 18px; }
       .vertical-metric { border-bottom: 1px solid #E5EAF0; padding: 8px 0 12px; }
+      .compact-fact { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid #E5EAF0; }
+      .compact-fact:last-child { border-bottom: 0; }
+      .compact-fact-label { color: #667085; font-size: .84rem; font-weight: 600; }
+      .compact-fact-value { color: #14213D; font-family: 'Space Grotesk', sans-serif; font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; }
+      .compact-fact-detail { color: #397C59; font-size: .8rem; }
       div[data-testid="stMetric"] { background: #FFFFFF; border: 1px solid #E5EAF0; border-radius: 11px; padding: 13px 15px; margin: 8px 0; box-shadow: 0 3px 10px rgba(20,33,61,.025); }
       div[data-testid="stMetricLabel"] p { white-space: normal; color: #667085; line-height: 1.2; }
       div[data-testid="stMetricValue"] { color: #14213D; font-family: 'Space Grotesk', sans-serif; }
@@ -208,6 +212,16 @@ def vertical_metric(label: str, value: str, detail: str | None = None) -> None:
     st.markdown('<div class="vertical-metric">', unsafe_allow_html=True)
     st.metric(label, value, detail)
     st.markdown("</div>", unsafe_allow_html=True)
+
+
+def compact_fact(label: str, value: str, detail: str | None = None) -> None:
+    """Exibe um indicador resumido em uma única linha vertical, sem cartões altos."""
+    detail_markup = f'<span class="compact-fact-detail">{detail}</span>' if detail else ""
+    st.markdown(
+        f'<div class="compact-fact"><span class="compact-fact-label">{label}</span>'
+        f'<span class="compact-fact-value">{value}</span>{detail_markup}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def style_chart(fig: go.Figure, height: int = 420, legend: bool = True) -> go.Figure:
@@ -708,9 +722,8 @@ market_source_caption = (
 st.markdown(
     """
     <div class="hero">
-      <div class="eyebrow">Quantitative intelligence · automotive</div>
-      <h1>Automotive Intelligence Platform</h1>
-      <p>Mercado agregado, catálogo completo de produto, custo energético e modelos validados em uma leitura sequencial e rastreável.</p>
+      <h1>Automotive Intelligence</h1>
+      <p>Mercado, produto, energia e planejamento quantitativo.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -755,24 +768,20 @@ tab_summary, tab_portfolio, tab_energy, tab_market, tab_models, tab_planning, ta
 )
 
 with tab_summary:
-    st.markdown("### Universo e resumo executivo")
-    vertical_metric(
-        "Configurações EPA no catálogo",
+    st.markdown("### Resumo executivo")
+    compact_fact(
+        "Configurações EPA",
         fmt_int(metadata["observacoes"]),
-        f"{metadata['ano_inicial']}–{metadata['ano_final']} · universo completo",
+        f"{metadata['ano_inicial']}–{metadata['ano_final']}",
     )
-    vertical_metric("Marcas EPA no catálogo", fmt_int(metadata["marcas"]))
-    vertical_metric("Modelos no catálogo", fmt_int(metadata["modelos"]))
-    vertical_metric("Configurações no filtro aplicado", fmt_int(kpis["configuracoes"]))
-    st.markdown(
-        f'<div class="insight"><strong>Leitura correta.</strong> O catálogo contém <strong>{fmt_int(metadata["observacoes"])} configurações</strong> entre {metadata["ano_inicial"]} e {metadata["ano_final"]}. Os filtros alteram a exploração visual; não criam vendas por marca ou por veículo.</div>',
-        unsafe_allow_html=True,
-    )
+    compact_fact("Marcas EPA", fmt_int(metadata["marcas"]))
+    compact_fact("Modelos EPA", fmt_int(metadata["modelos"]))
+    compact_fact("Configurações no filtro", fmt_int(kpis["configuracoes"]))
     st.markdown("#### Mercado")
     st.caption(market_source_caption)
-    vertical_metric("Modelo de mercado", winner)
-    vertical_metric("MAPE fora da amostra", f"{winner_metrics['mape_medio']:.2f}%")
-    vertical_metric("Mix eletrificado no filtro", fmt_pct(kpis["eletrificados_pct"]))
+    compact_fact("Modelo selecionado", winner)
+    compact_fact("MAPE fora da amostra", f"{winner_metrics['mape_medio']:.2f}%")
+    compact_fact("Mix eletrificado", fmt_pct(kpis["eletrificados_pct"]))
     st.plotly_chart(
         forecast_chart(history, forecast, winner), use_container_width=True, config=PLOT_CONFIG, key="summary_forecast"
     )
