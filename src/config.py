@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -59,6 +59,8 @@ class PlanningAssumptions:
 
 
 SOURCES = SourceSettings()
+# Atualização offline de energia: não deve aguardar a política mais longa de uma fonte indisponível.
+ENERGY_REFRESH_SOURCES = replace(SOURCES, request_timeout_seconds=4.0, max_attempts=2, retry_backoff_seconds=0.25)
 FORECAST_DEFAULTS = ForecastSettings()
 PLANNING_DEFAULTS = PlanningAssumptions()
 

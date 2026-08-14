@@ -50,7 +50,7 @@
     "frequency_gaps": 0.0,
     "snapshot_path": "/home/ubuntu/quant_automotivo_streamlit/data/energy_price_snapshot.csv",
     "snapshot_sha256": "f4e4aaa580c24ecc0105062a31912b637f19145bcc19dd78561f43a108a29294",
-    "snapshot_modified_utc": "2026-08-13T23:26:47.097777+00:00",
+    "snapshot_modified_utc": "2026-08-14T11:02:06.857542+00:00",
     "notes": "Cobertura histórica varia por série; ausências são preservadas e não imputadas."
   }
 ]

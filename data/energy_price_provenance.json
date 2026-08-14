@@ -1,0 +1,38 @@
+{
+  "updated_at_utc": "2026-08-14T11:02:06.843486+00:00",
+  "refresh_policy": {
+    "parallel_workers": 3,
+    "timeout_seconds": 4.0,
+    "max_attempts": 2
+  },
+  "series": {
+    "GASREGW": {
+      "output_column": "gasolina_usd_gal",
+      "status": "ONLINE",
+      "source_url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GASREGW",
+      "retrieved_at_utc": "2026-08-14T11:02:06.833930+00:00",
+      "rows": 433,
+      "start": "1990-08-01",
+      "end": "2026-08-01"
+    },
+    "GASDESW": {
+      "output_column": "diesel_usd_gal",
+      "status": "ONLINE",
+      "source_url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GASDESW",
+      "retrieved_at_utc": "2026-08-14T11:02:06.723784+00:00",
+      "rows": 390,
+      "start": "1994-03-01",
+      "end": "2026-08-01"
+    },
+    "APU000072610": {
+      "output_column": "eletricidade_usd_kwh",
+      "status": "ONLINE",
+      "source_url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=APU000072610",
+      "retrieved_at_utc": "2026-08-14T11:02:06.484479+00:00",
+      "rows": 573,
+      "start": "1978-11-01",
+      "end": "2026-07-01"
+    }
+  },
+  "duration_seconds": 3.733
+}
