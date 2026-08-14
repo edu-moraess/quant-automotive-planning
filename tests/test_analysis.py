@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -65,3 +66,13 @@ def test_production_plan_respects_capacity_and_balance():
         lhs = result["estoque"][index] - result["backlog"][index]
         rhs = previous_inventory - previous_backlog + result["producao"][index] - demand_value
         assert lhs == rhs
+
+
+def test_prepare_data_rejects_empty_market_series():
+    with pytest.raises(ValueError, match="DataFrame não vazio"):
+        prepare_data(pd.DataFrame(columns=["observation_date", "TOTALSA"]))
+
+
+def test_metricas_rejects_non_finite_predictions():
+    with pytest.raises(ValueError, match="não podem conter NaN"):
+        metricas(np.array([10.0, 12.0]), np.array([10.0, np.nan]))

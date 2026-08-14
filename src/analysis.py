@@ -112,6 +112,8 @@ def market_refresh_summary(
 
 def prepare_data(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Normaliza TOTALSA, preserva observações válidas e calcula qualidade descritiva."""
+    if not isinstance(raw, pd.DataFrame) or raw.empty:
+        raise ValueError("A série de mercado deve ser um DataFrame não vazio.")
     required = {"observation_date", "TOTALSA"}
     if not required.issubset(raw.columns):
         raise ValueError(f"Formato inesperado. Colunas necessárias: {sorted(required)}")
@@ -127,6 +129,8 @@ def prepare_data(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
         .drop_duplicates("data", keep="last")
         .reset_index(drop=True)
     )
+    if cleaned.empty:
+        raise ValueError("A série não contém observações mensais válidas após a normalização.")
     cleaned["demanda_mensal_est_milhoes"] = cleaned["vendas_saar_milhoes"] / 12
     cleaned["mes"] = cleaned["data"].dt.month
     cleaned["ano"] = cleaned["data"].dt.year
@@ -163,7 +167,11 @@ def _test_result(test: Callable[..., Any], *args: Any, **kwargs: Any) -> dict[st
 
 def compute_diagnostics(data: pd.DataFrame) -> dict[str, Any]:
     """Calcula estacionariedade, decomposição, autocorrelação e normalidade da série."""
+    if not isinstance(data, pd.DataFrame) or "vendas_saar_milhoes" not in data.columns or "data" not in data.columns:
+        raise ValueError("Diagnósticos exigem colunas 'data' e 'vendas_saar_milhoes'.")
     series = data["vendas_saar_milhoes"].astype(float).dropna()
+    if len(series) < 24:
+        raise ValueError("Diagnósticos sazonais exigem pelo menos 24 observações mensais válidas.")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         adf_level = _test_result(adfuller, series, autolag="AIC")
@@ -202,6 +210,10 @@ def metricas(y_real: np.ndarray, y_previsto: np.ndarray, insample: np.ndarray | 
     """Calcula métricas de escala, percentuais e erro relativo para seleção temporal."""
     real = np.asarray(y_real, dtype=float)
     predicted = np.asarray(y_previsto, dtype=float)
+    if real.ndim != 1 or predicted.ndim != 1 or len(real) == 0 or len(real) != len(predicted):
+        raise ValueError("Real e previsto devem ser vetores unidimensionais de mesmo tamanho não vazio.")
+    if not np.isfinite(real).all() or not np.isfinite(predicted).all():
+        raise ValueError("Real e previsto não podem conter NaN ou infinito.")
     denominator = np.where(np.abs(real) < 1e-12, 1e-12, np.abs(real))
     smape_denominator = np.maximum(np.abs(real) + np.abs(predicted), 1e-12)
     metrics = {
@@ -213,6 +225,8 @@ def metricas(y_real: np.ndarray, y_previsto: np.ndarray, insample: np.ndarray | 
     }
     if insample is not None:
         history = np.asarray(insample, dtype=float)
+        if history.ndim != 1 or not np.isfinite(history).all():
+            raise ValueError("A amostra de referência do MASE deve ser um vetor finito.")
         naive_scale = np.mean(np.abs(np.diff(history))) if len(history) > 1 else np.nan
         metrics["MASE"] = float(metrics["MAE (milhões SAAR)"] / naive_scale) if naive_scale > 1e-12 else np.nan
     return metrics
