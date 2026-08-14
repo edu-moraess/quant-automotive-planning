@@ -66,7 +66,7 @@ ENERGY_COLORS = {
 
 @st.cache_data(show_spinner=False)
 def load_product_layer(epa_mtime: float, energy_mtime: float) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Carrega snapshots estáveis; mtimes invalidam cache apenas quando os arquivos mudam."""
+    """Carrega os snapshots de produto e energia; mtimes controlam a invalidação seletiva do cache."""
     raw_vehicles = load_vehicle_data(EPA_SNAPSHOT)
     prices = load_energy_prices(ENERGY_SNAPSHOT)
     return raw_vehicles, prices, add_energy_cost_estimate(raw_vehicles, prices)
@@ -92,7 +92,7 @@ def load_market_source_cached(
     market_mtime: float,
     allow_online: bool,
 ) -> dict:
-    """Consulta ou lê TOTALSA; o contador força rede sem invalidar a modelagem idêntica."""
+    """Obtém TOTALSA e invalida apenas a camada de ingestão quando a atualização é solicitada."""
     started = perf_counter()
     raw, provenance = analysis_module.read_fred_with_provenance(
         fallback_path=MARKET_SNAPSHOT,
@@ -106,7 +106,7 @@ def load_market_source_cached(
 
 @st.cache_data(show_spinner=False)
 def run_forecast_cached(data: pd.DataFrame, n_folds: int, test_size: int, horizon: int) -> dict:
-    """Executa a modelagem somente quando a série ou parâmetros de forecast mudam."""
+    """Executa diagnóstico, backtest walk-forward e forecast probabilístico quando série ou hiperparâmetros mudam."""
     diagnostics = analysis_module.compute_diagnostics(data)
     backtest = analysis_module.run_backtest(data, n_folds, test_size)
     forecast, simulations = analysis_module.make_forecast(data, backtest, horizon, bootstrap_replicas=2000, seed=42)
@@ -128,7 +128,7 @@ def run_planning_cached(
     safety_stock_penalty: float,
     setup_cost: float,
 ) -> dict:
-    """Resolve o plano apenas quando forecast ou hipóteses operacionais forem alterados."""
+    """Resolve a otimização de produção quando forecast ou hipóteses operacionais são alterados."""
     return analysis_module.build_production_plan(
         forecast,
         participation,
@@ -216,7 +216,7 @@ def vertical_metric(label: str, value: str, detail: str | None = None) -> None:
 
 
 def compact_fact(label: str, value: str, detail: str | None = None) -> None:
-    """Exibe um indicador resumido em uma única linha vertical, sem cartões altos."""
+    """Renderiza um KPI compacto em fluxo vertical para preservar a legibilidade."""
     detail_markup = f'<span class="compact-fact-detail">{detail}</span>' if detail else ""
     st.markdown(
         f'<div class="compact-fact"><span class="compact-fact-label">{label}</span>'

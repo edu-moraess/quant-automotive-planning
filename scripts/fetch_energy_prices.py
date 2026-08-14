@@ -1,4 +1,4 @@
-"""Atualiza os preços de energia e registra a origem dos dados."""
+"""Atualiza o snapshot de preços de energia com validação e proveniência."""
 
 from __future__ import annotations
 

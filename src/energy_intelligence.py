@@ -1,4 +1,9 @@
-"""Funções para analisar preços de energia e combustível."""
+"""Análises de energia e combustível para a plataforma automotiva.
+
+A camada combina séries oficiais de preço de energia com atributos técnicos da
+EPA. Preços nacionais servem como referência macro; não representam tarifas
+locais, contratos de frota ou desembolso individual.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +21,7 @@ ENERGY_REQUIRED_COLUMNS = {"data", *ENERGY_PRICE_COLUMNS}
 
 
 def load_energy_prices(source: str | Path) -> pd.DataFrame:
-    """Carrega e organiza os preços mensais de energia."""
+    """Lê, valida e ordena o snapshot mensal de preços nacionais de energia."""
     prices = pd.read_csv(source, parse_dates=["data"])
     missing_columns = sorted(ENERGY_REQUIRED_COLUMNS.difference(prices.columns))
     if missing_columns:
@@ -36,7 +41,7 @@ def load_energy_prices(source: str | Path) -> pd.DataFrame:
 
 
 def latest_energy_snapshot(prices: pd.DataFrame) -> pd.DataFrame:
-    """Seleciona o preço mais recente de cada fonte."""
+    """Retorna última observação disponível por série, preservando a data."""
     rows: list[dict[str, object]] = []
     for column, label in ENERGY_PRICE_COLUMNS.items():
         valid = prices.dropna(subset=[column])[["data", column]]
@@ -49,7 +54,7 @@ def latest_energy_snapshot(prices: pd.DataFrame) -> pd.DataFrame:
 
 
 def energy_price_index(prices: pd.DataFrame, periods: int = 48) -> pd.DataFrame:
-    """Converte preços em um índice base 100 para comparação."""
+    """Transforma séries de unidades diferentes em índices comparáveis, base 100."""
     recent = prices.tail(periods).copy()
     records: list[pd.DataFrame] = []
     for column, label in ENERGY_PRICE_COLUMNS.items():
@@ -66,7 +71,7 @@ def energy_price_index(prices: pd.DataFrame, periods: int = 48) -> pd.DataFrame:
 
 
 def classify_energy_source(data: pd.DataFrame) -> pd.Series:
-    """Define a fonte de energia principal de cada veículo."""
+    """Associa uma configuração à fonte de energia primária para custo comparável."""
     fuel = data.get("fuelType1", pd.Series("", index=data.index)).fillna("").astype(str).str.lower()
     powertrain = data.get("powertrain", pd.Series("", index=data.index)).fillna("").astype(str)
     is_electric = powertrain.eq("Elétrico a bateria")
@@ -94,7 +99,14 @@ def _latest_price_value(prices: pd.DataFrame, column: str) -> float:
 
 
 def add_energy_cost_estimate(data: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
-    """Calcula o custo de energia por 100 milhas quando há dados compatíveis."""
+    """Adiciona custo energético de referência por 100 milhas quando comparável.
+
+    Gasolina e diesel usam preço nacional por galão dividido por MPG. Veículos
+    elétricos a bateria usam consumo ``combE`` (kWh por 100 milhas no arquivo
+    EPA) multiplicado por preço nacional por kWh. PHEVs e outros combustíveis
+    ficam sem estimativa, pois exigem premissas de uso ou fontes de preço não
+    harmonizadas nesta camada.
+    """
     result = data.copy()
     result["fonte_energia"] = classify_energy_source(result)
     result["custo_energia_100mi_usd"] = np.nan
@@ -114,7 +126,7 @@ def add_energy_cost_estimate(data: pd.DataFrame, prices: pd.DataFrame) -> pd.Dat
 
 
 def energy_summary(data: pd.DataFrame) -> pd.DataFrame:
-    """Resume eficiência, emissões e custo por fonte de energia."""
+    """Consolida tecnologia, eficiência, emissões e custo energético por fonte."""
     if data.empty:
         return pd.DataFrame()
     return (
@@ -134,7 +146,7 @@ def energy_summary(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def spearman_correlation_matrix(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Calcula correlações de Spearman e o número de dados válidos."""
+    """Calcula matriz de Spearman e contagem de pares válidos por indicador."""
     columns = {
         "eficiencia_valida": "Eficiência (MPG/MPGe)",
         "custo_anual_valido": "Custo EPA anual (US$)",
@@ -154,7 +166,7 @@ def spearman_correlation_matrix(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Da
 
 
 def strongest_spearman_pairs(correlations: pd.DataFrame, pair_counts: pd.DataFrame, limit: int = 6) -> pd.DataFrame:
-    """Lista as associações mais fortes entre os indicadores."""
+    """Retorna pares únicos de maior associação absoluta, com n válido."""
     rows: list[dict[str, object]] = []
     labels = list(correlations.columns)
     for i, left in enumerate(labels):

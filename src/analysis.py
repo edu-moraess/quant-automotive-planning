@@ -1,4 +1,9 @@
-"""Funções de mercado, previsão e planejamento."""
+"""Motor de mercado, forecast probabilístico e planejamento operacional.
+
+O módulo não depende de Streamlit: pode ser testado, executado por scripts e usado
+pela interface apenas como camada de cálculo. Forecasts são validados em ordem
+temporal e a incerteza é construída a partir de erros fora da amostra.
+"""
 
 from __future__ import annotations
 
@@ -42,7 +47,7 @@ def read_fred_with_provenance(
     fallback_path: str | Path | None = None,
     allow_online: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, str | None]]:
-    """Carrega TOTALSA e informa qual fonte foi usada."""
+    """Lê TOTALSA e preserva a proveniência da fonte efetivamente usada."""
     if fallback_path is None:
         raise ValueError("Um snapshot local é obrigatório para a degradação controlada da fonte FRED.")
     result = load_csv_with_fallback(
@@ -68,7 +73,7 @@ def read_fred_csv(
     fallback_path: str | Path | None = None,
     allow_online: bool = True,
 ) -> tuple[pd.DataFrame, str]:
-    """Retorna TOTALSA e o nome da fonte usada."""
+    """Compatibilidade: retorna série TOTALSA e rótulo legível da fonte."""
     frame, provenance = read_fred_with_provenance(source, fallback_path, allow_online)
     return frame, str(provenance["source_label"])
 
@@ -78,7 +83,7 @@ def market_refresh_summary(
     snapshot_path: str | Path,
     provenance: dict[str, str | None],
 ) -> dict[str, str | int | None]:
-    """Compara a série atual com o arquivo local."""
+    """Resume a atualização do FRED comparando a série ativa ao arquivo local de referência."""
     snapshot_raw = pd.read_csv(snapshot_path)
     snapshot_data, _ = prepare_data(snapshot_raw)
     current = market_data[["data", "vendas_saar_milhoes"]].rename(columns={"vendas_saar_milhoes": "valor_atual"})
@@ -105,7 +110,7 @@ def market_refresh_summary(
 
 
 def prepare_data(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Organiza TOTALSA e resume a qualidade da série."""
+    """Normaliza TOTALSA, preserva observações válidas e calcula qualidade descritiva."""
     required = {"observation_date", "TOTALSA"}
     if not required.issubset(raw.columns):
         raise ValueError(f"Formato inesperado. Colunas necessárias: {sorted(required)}")
@@ -156,7 +161,7 @@ def _test_result(test: Callable[..., Any], *args: Any, **kwargs: Any) -> dict[st
 
 
 def compute_diagnostics(data: pd.DataFrame) -> dict[str, Any]:
-    """Calcula testes e indicadores da série."""
+    """Calcula estacionariedade, decomposição, autocorrelação e normalidade da série."""
     series = data["vendas_saar_milhoes"].astype(float).dropna()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -193,7 +198,7 @@ def compute_diagnostics(data: pd.DataFrame) -> dict[str, Any]:
 
 
 def metricas(y_real: np.ndarray, y_previsto: np.ndarray, insample: np.ndarray | None = None) -> dict[str, float]:
-    """Calcula métricas de erro para comparar os modelos."""
+    """Calcula métricas de escala, percentuais e erro relativo para seleção temporal."""
     real = np.asarray(y_real, dtype=float)
     predicted = np.asarray(y_previsto, dtype=float)
     denominator = np.where(np.abs(real) < 1e-12, 1e-12, np.abs(real))
@@ -213,7 +218,7 @@ def metricas(y_real: np.ndarray, y_previsto: np.ndarray, insample: np.ndarray | 
 
 
 def construir_dobras(data: pd.DataFrame, n_dobras: int = 4, tamanho_dobra: int = 6) -> list[tuple[slice, slice]]:
-    """Cria divisões temporais sem usar dados futuros."""
+    """Gera dobras walk-forward expansivas, sem vazamento temporal."""
     if n_dobras < 1 or tamanho_dobra < 1:
         raise ValueError("O número e o tamanho das dobras devem ser positivos.")
     start_test = len(data) - n_dobras * tamanho_dobra
@@ -282,7 +287,7 @@ def prever_regressao_defasagens(treino: pd.DataFrame, n_periodos: int) -> np.nda
 
 
 def prever_autoreg_sazonal(treino: pd.DataFrame, n_periodos: int) -> np.ndarray:
-    """Faz uma previsão AutoReg com tendência e sazonalidade mensal."""
+    """AutoReg com tendência e efeitos sazonais; adequado a uma série mensal curta."""
     series = treino["vendas_saar_milhoes"].astype(float).to_numpy()
     model = AutoReg(
         series,
@@ -364,7 +369,7 @@ def _interval_quality(actual: np.ndarray, predicted: np.ndarray, residuals: np.n
 def prequential_interval_quality(
     actuals_by_fold: list[np.ndarray], predictions_by_fold: list[np.ndarray]
 ) -> dict[str, float | int]:
-    """Verifica os intervalos usando apenas erros já conhecidos."""
+    """Avalia intervalos por dobra usando somente resíduos de dobras anteriores."""
     if len(actuals_by_fold) != len(predictions_by_fold):
         raise ValueError("Atuals e previsões devem conter o mesmo número de dobras.")
 
@@ -412,7 +417,7 @@ def run_backtest(
     tamanho_dobra: int = 6,
     selection_tolerance_mape: float = FORECAST_DEFAULTS.selection_tolerance_mape_pp,
 ) -> dict[str, Any]:
-    """Compara os modelos no tempo e escolhe o mais consistente."""
+    """Compara candidatos por walk-forward expansivo e seleciona com métricas múltiplas."""
     records: list[dict[str, Any]] = []
     prediction_rows: list[dict[str, Any]] = []
     predictions_by_model: dict[str, list[np.ndarray]] = {model: [] for model in MODEL_NAMES}
@@ -539,7 +544,7 @@ def make_forecast(
     seed: int = FORECAST_DEFAULTS.random_seed,
     bootstrap_block_size: int = FORECAST_DEFAULTS.bootstrap_block_size,
 ) -> tuple[pd.DataFrame, np.ndarray]:
-    """Refaz o melhor modelo e gera faixas de previsão."""
+    """Reestima o vencedor e produz P10/P25/P50/P75/P90 por bootstrap empírico."""
     winner = backtest["winner"]
     future_dates = pd.date_range(data["data"].max() + pd.offsets.MonthBegin(1), periods=horizon, freq="MS")
     if winner == "Holt-Winters":
@@ -575,7 +580,7 @@ def make_forecast(
 
 
 def converter_demanda_veiculos(scenario_millions_saar: pd.Series, participation: float) -> pd.Series:
-    """Converte a projeção anualizada em demanda mensal estimada."""
+    """Compatibilidade pública: converte SAAR em unidades mensais assumidas."""
     return demand_from_saar(scenario_millions_saar, participation)
 
 
@@ -588,7 +593,7 @@ def resolver_plano_producao(
     custo_ruptura: float,
     nome: str = "plano",
 ) -> dict[str, Any]:
-    """Encaminha a demanda para o modelo de planejamento."""
+    """Compatibilidade pública com o motor de planejamento configurável."""
     assumptions = PlanningAssumptions(
         participation=0.0,
         regular_capacity=capacidade,
@@ -614,7 +619,7 @@ def build_production_plan(
     safety_stock_penalty: float = 1_000.0,
     setup_cost: float = 0.0,
 ) -> dict[str, Any]:
-    """Cria cenários e a sensibilidade de capacidade."""
+    """Produz cenários Base/Upside/Downside/Stress e sensibilidade com hipóteses declaradas."""
     assumptions = PlanningAssumptions(
         participation=participation,
         regular_capacity=capacity,
@@ -657,7 +662,7 @@ def run_full_analysis(
     source_url: str = FRED_CSV_URL,
     allow_online: bool = True,
 ) -> dict[str, Any]:
-    """Executa o fluxo de mercado, previsão e planejamento."""
+    """Executa mercado → forecast probabilístico → plano operacional de forma determinística."""
     raw, provenance = read_fred_with_provenance(source_url, fallback_path, allow_online=allow_online)
     data, quality = prepare_data(raw)
     refresh = market_refresh_summary(data, fallback_path, provenance)

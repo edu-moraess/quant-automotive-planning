@@ -1,4 +1,4 @@
-"""Confere os dados de mercado, catálogo EPA e preços de energia."""
+"""Audita a cobertura integral de mercado, catálogo EPA e preços de energia."""
 
 from __future__ import annotations
 

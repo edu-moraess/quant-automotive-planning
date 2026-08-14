@@ -1,4 +1,4 @@
-"""Cria cenários de demanda e energia para apoiar decisões."""
+"""Cenários explícitos de demanda e energia para análise de decisão."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ DEFAULT_SHOCKS = {
 
 
 def apply_demand_scenarios(forecast: pd.DataFrame, shocks: dict[str, float] = DEFAULT_SHOCKS) -> pd.DataFrame:
-    """Aplica os choques de demanda sobre a projeção central."""
+    """Aplica choques declarados à trajetória P50 sem alterar o forecast base silenciosamente."""
     if "p50" not in forecast.columns:
         raise ValueError("Forecast deve conter a coluna p50 para cenários de demanda.")
     rows: list[pd.DataFrame] = []
@@ -36,7 +36,7 @@ def energy_price_sensitivity(
     prices: pd.DataFrame,
     shocks: Iterable[float] = (-0.20, 0.0, 0.20),
 ) -> pd.DataFrame:
-    """Calcula como os choques de energia alteram o custo por 100 milhas."""
+    """Calcula custo mediano por 100 milhas sob choques proporcionais e explícitos de energia."""
     rows: list[dict[str, float | str]] = []
     for shock in shocks:
         if shock <= -1:

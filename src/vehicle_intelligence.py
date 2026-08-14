@@ -1,4 +1,10 @@
-"""Funções para analisar o catálogo de veículos da EPA."""
+"""Camada analítica para inteligência de produto automotivo baseada na EPA.
+
+A base EPA descreve configurações de veículos leves comercializados nos Estados
+Unidos. Ela suporta comparações técnicas de produto por marca, modelo, segmento,
+propulsão, eficiência, emissões, autonomia e custo anual de energia. Não é uma
+base de vendas por marca.
+"""
 
 from __future__ import annotations
 
@@ -44,14 +50,14 @@ EPA_REQUIRED_COLUMNS = {"id", "year", "make", "model", "VClass", "fuelType1", "c
 
 
 def _text_series(frame: pd.DataFrame, column: str) -> pd.Series:
-    """Cria uma coluna de texto mesmo quando ela não existe na base."""
+    """Retorna uma série de texto limpa mesmo quando a coluna estiver ausente."""
     if column not in frame.columns:
         return pd.Series("", index=frame.index, dtype="string")
     return frame[column].fillna("").astype(str).str.strip()
 
 
 def classify_powertrain(frame: pd.DataFrame) -> pd.Series:
-    """Identifica a tecnologia de propulsão de cada veículo."""
+    """Classifica a configuração em uma taxonomia de propulsão legível."""
     fuel = _text_series(frame, "fuelType1").str.lower()
     atv = _text_series(frame, "atvType").str.lower()
     range_miles = pd.to_numeric(frame.get("range", 0), errors="coerce").fillna(0)
@@ -92,7 +98,7 @@ def classify_powertrain(frame: pd.DataFrame) -> pd.Series:
 
 
 def load_vehicle_data(source: str | Path) -> pd.DataFrame:
-    """Carrega, confere e prepara o catálogo da EPA."""
+    """Lê, valida e prepara a base oficial de veículos da EPA."""
     raw = pd.read_csv(source, low_memory=False)
     missing_columns = sorted(EPA_REQUIRED_COLUMNS.difference(raw.columns))
     if missing_columns:
@@ -130,7 +136,7 @@ def filter_vehicles(
     powertrains: Iterable[str] | None = None,
     segments: Iterable[str] | None = None,
 ) -> pd.DataFrame:
-    """Filtra o catálogo pelos critérios escolhidos."""
+    """Aplica filtros de explorador preservando o universo de configurações EPA."""
     start_year, end_year = int(year_range[0]), int(year_range[1])
     filtered = data[data["year"].between(start_year, end_year, inclusive="both")].copy()
     if makes:
@@ -143,7 +149,7 @@ def filter_vehicles(
 
 
 def portfolio_kpis(data: pd.DataFrame) -> dict[str, float | int]:
-    """Calcula os principais indicadores do recorte selecionado."""
+    """Consolida indicadores para o universo filtrado de configurações."""
     if data.empty:
         return {
             "configuracoes": 0,
@@ -164,7 +170,7 @@ def portfolio_kpis(data: pd.DataFrame) -> dict[str, float | int]:
 
 
 def brand_summary(data: pd.DataFrame, min_records: int = 1) -> pd.DataFrame:
-    """Resume o portfólio de cada marca."""
+    """Resume amplitude e eficiência de portfólio por fabricante."""
     if data.empty:
         return pd.DataFrame()
     summary = (
@@ -188,7 +194,12 @@ def brand_summary(data: pd.DataFrame, min_records: int = 1) -> pd.DataFrame:
 
 
 def brand_registry(data: pd.DataFrame, recent_window_years: int = 3) -> pd.DataFrame:
-    """Organiza as marcas como aparecem no campo make da EPA."""
+    """Audita os nomes literais de marca publicados no campo ``make`` da EPA.
+
+    O status é temporal e descritivo: informa apenas se existe observação no
+    intervalo recente do próprio snapshot. Ele não infere atividade comercial,
+    propriedade societária ou participação de mercado de uma marca.
+    """
     if data.empty:
         return pd.DataFrame()
     latest_year = int(data["year"].max())
@@ -218,7 +229,7 @@ def brand_registry(data: pd.DataFrame, recent_window_years: int = 3) -> pd.DataF
 
 
 def model_summary(data: pd.DataFrame, min_records: int = 1) -> pd.DataFrame:
-    """Resume os veículos por marca e modelo."""
+    """Consolida o portfólio por marca e modelo sem misturar configurações."""
     if data.empty:
         return pd.DataFrame()
     summary = data.groupby(["make", "model", "VClass", "powertrain"], as_index=False).agg(
@@ -237,7 +248,7 @@ def model_summary(data: pd.DataFrame, min_records: int = 1) -> pd.DataFrame:
 
 
 def segment_summary(data: pd.DataFrame) -> pd.DataFrame:
-    """Resume os veículos por classe EPA."""
+    """Resume diversidade e desempenho por classe de veículo EPA."""
     if data.empty:
         return pd.DataFrame()
     return (
@@ -256,7 +267,7 @@ def segment_summary(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def powertrain_summary(data: pd.DataFrame) -> pd.DataFrame:
-    """Resume a participação e os atributos por tipo de propulsão."""
+    """Resume participação de configurações e atributos de propulsão."""
     if data.empty:
         return pd.DataFrame()
     total = len(data)
@@ -277,7 +288,7 @@ def powertrain_summary(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def annual_portfolio_trend(data: pd.DataFrame) -> pd.DataFrame:
-    """Mostra a evolução anual por tipo de propulsão."""
+    """Série anual de produto e eficiência por tipo de propulsão."""
     if data.empty:
         return pd.DataFrame()
     return (
@@ -297,7 +308,7 @@ def annual_portfolio_trend(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def vehicle_universe_metadata(data: pd.DataFrame) -> dict[str, int]:
-    """Resume a cobertura do catálogo carregado."""
+    """Resume a escala temporal e a cobertura do snapshot."""
     return {
         "observacoes": int(len(data)),
         "marcas": int(data["make"].nunique()),

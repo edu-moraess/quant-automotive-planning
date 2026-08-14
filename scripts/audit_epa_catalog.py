@@ -1,4 +1,4 @@
-"""Gera uma leitura simples do catálogo EPA usado no projeto."""
+"""Gera um relatório reprodutível de auditoria do snapshot EPA incluído no projeto."""
 
 from __future__ import annotations
 

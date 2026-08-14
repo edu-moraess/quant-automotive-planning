@@ -1,4 +1,4 @@
-"""Monta um resumo de qualidade e origem dos dados locais."""
+"""Gera um artefato de saúde e proveniência para os dados locais."""
 
 from __future__ import annotations
 

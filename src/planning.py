@@ -1,4 +1,4 @@
-"""Funções para transformar demanda em um plano de produção."""
+"""Otimização operacional e inteligência de decisão com hipóteses explícitas."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def demand_from_saar(saar_millions: pd.Series, participation: float) -> pd.Serie
 def solve_production_plan(
     demand: np.ndarray, assumptions: PlanningAssumptions, scenario_name: str = "Base"
 ) -> dict[str, Any]:
-    """Encontra o plano de menor custo considerando capacidade, estoque e backlog."""
+    """Minimiza custo operacional sob capacidade, estoque, backlog e segurança explicitados."""
     if pulp is None:
         raise RuntimeError("A dependência PuLP não está instalada.")
     validate_assumptions(assumptions)
@@ -105,7 +105,7 @@ def build_scenario_table(
     assumptions: PlanningAssumptions,
     demand_shocks: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
-    """Monta planos comparáveis para cada cenário de demanda."""
+    """Transforma quantis e choques declarados em soluções comparáveis de planejamento."""
     if "p50" not in forecast.columns:
         raise ValueError("Forecast deve conter p50.")
     shocks = demand_shocks or {"Downside": -0.10, "Base": 0.0, "Upside": 0.10, "Stress": 0.20}
@@ -157,7 +157,7 @@ def build_sensitivity(
     capacity_factors: tuple[float, ...] = (0.8, 0.9, 1.0, 1.1, 1.2),
     participation_offsets: tuple[float, ...] = (-0.02, 0.0, 0.02),
 ) -> pd.DataFrame:
-    """Compara backlog para diferentes capacidades e participações."""
+    """Mede backlog acumulado em grade de capacidade regular e participação assumida."""
     rows: list[dict[str, float]] = []
     for capacity_factor in capacity_factors:
         for offset in participation_offsets:
@@ -189,7 +189,7 @@ def build_sensitivity(
 
 
 def decision_brief(scenarios: pd.DataFrame, assumptions: PlanningAssumptions) -> dict[str, str | float]:
-    """Resume a ação e o principal risco de cada cenário."""
+    """Converte cenários em uma leitura operacional sem ocultar hipóteses."""
     base = scenarios.loc[scenarios["Cenário"].eq("Base")].iloc[0]
     stress = scenarios.loc[scenarios["Cenário"].eq("Stress")].iloc[0]
     if stress["Demanda pendente final"] > 0:

@@ -1,4 +1,4 @@
-"""Configurações usadas pela aplicação."""
+"""Parâmetros centralizados e determinísticos da plataforma."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class PlanningAssumptions:
 
 
 SOURCES = SourceSettings()
-# Usa prazos menores para energia quando a consulta online não responde.
+# Atualização offline de energia: não deve aguardar a política mais longa de uma fonte indisponível.
 ENERGY_REFRESH_SOURCES = replace(SOURCES, request_timeout_seconds=4.0, max_attempts=2, retry_backoff_seconds=0.25)
 FORECAST_DEFAULTS = ForecastSettings()
 PLANNING_DEFAULTS = PlanningAssumptions()

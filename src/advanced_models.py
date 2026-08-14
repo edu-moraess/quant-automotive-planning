@@ -1,4 +1,8 @@
-"""Reúne os modelos de mercado, energia e eficiência de veículos."""
+"""Modelos integrados de mercado, energia e eficiência de produto.
+
+Os modelos usam snapshots públicos com origem rastreável. A separação temporal
+impede que configurações recentes ou meses futuros entrem no treinamento.
+"""
 
 from __future__ import annotations
 
@@ -38,7 +42,7 @@ def _metrics(actual: pd.Series | np.ndarray, predicted: pd.Series | np.ndarray) 
 
 
 def prepare_econometric_frame(market_data: pd.DataFrame, energy_prices: pd.DataFrame) -> pd.DataFrame:
-    """Prepara mercado, energia e defasagens no mesmo período."""
+    """Harmoniza mercado mensal, energia e variáveis defasadas em período comum."""
     market = market_data[["data", MARKET_TARGET]].copy()
     market["data"] = pd.to_datetime(market["data"])
     energy = energy_prices[["data", *ENERGY_FEATURES]].copy()
@@ -56,7 +60,7 @@ def prepare_econometric_frame(market_data: pd.DataFrame, energy_prices: pd.DataF
 def fit_econometric_energy_model(
     market_data: pd.DataFrame, energy_prices: pd.DataFrame, holdout_months: int = 24
 ) -> dict[str, Any]:
-    """Treina a regressão e testa os meses mais recentes em ordem cronológica."""
+    """Estima OLS padronizado e avalia os últimos meses sem reordenar o tempo."""
     frame = prepare_econometric_frame(market_data, energy_prices)
     if len(frame) <= holdout_months + 36:
         raise ValueError("A sobreposição entre mercado e energia é insuficiente para a validação temporal.")
@@ -147,7 +151,7 @@ def _neural_preprocessor() -> ColumnTransformer:
 
 
 def fit_efficiency_neural_model(vehicle_data: pd.DataFrame, cutoff_year: int = 2024) -> dict[str, Any]:
-    """Treina a rede neural de eficiência com separação por ano-modelo."""
+    """Treina MLP de eficiência usando separação de ano-modelo, sem vazamento do alvo."""
     features = [*NEURAL_NUMERIC_FEATURES, *NEURAL_CATEGORICAL_FEATURES]
     required = list(dict.fromkeys(["id", "make", "model", "year", "comb08", "powertrain", *features]))
     frame = vehicle_data[required].copy()
@@ -233,7 +237,7 @@ def fit_efficiency_neural_model(vehicle_data: pd.DataFrame, cutoff_year: int = 2
 
 
 def save_advanced_results(output_dir: str | Path, econometric: dict[str, Any], neural: dict[str, Any]) -> None:
-    """Salva métricas e resultados para a interface."""
+    """Persiste métricas, coeficientes e previsões para leitura rápida na interface."""
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     summary = {
