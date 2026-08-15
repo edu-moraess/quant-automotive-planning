@@ -1,25 +1,25 @@
 {
-  "updated_at_utc": "2026-08-14T14:00:17.206870+00:00",
+  "updated_at_utc": "2026-08-15T00:11:15.717901+00:00",
   "sources": {
     "fred": {
-      "state": "degraded",
-      "rows": 19,
-      "requested_at_utc": "2026-08-14T13:42:03.756714+00:00",
-      "latency_ms": 0.0,
-      "coverage_start": "2025-01-01T00:00:00",
+      "state": "fresh",
+      "rows": 1231,
+      "requested_at_utc": "2026-08-15T00:11:15.717171+00:00",
+      "latency_ms": null,
+      "coverage_start": "1976-01-01T00:00:00",
       "coverage_end": "2026-07-01T00:00:00",
       "cache_hit": false,
-      "message": "TOTALSA carregada do snapshot local; macro online indisponível ou sem chave."
+      "message": "CPIAUCSL e INDPRO materializadas pelo endpoint público fredgraph.csv; disponibilidade igual à data da observação por ausência de vintage autenticado."
     },
     "feature_builder": {
       "state": "fresh",
-      "rows": 184,
-      "requested_at_utc": "2026-08-14T14:00:15.452422+00:00",
+      "rows": 607,
+      "requested_at_utc": "2026-08-15T00:11:15.717358+00:00",
       "latency_ms": null,
-      "coverage_start": null,
-      "coverage_end": null,
+      "coverage_start": "1976-01-01T00:00:00",
+      "coverage_end": "2026-07-01T00:00:00",
       "cache_hit": false,
-      "message": "Features mensais construídas sem usar textos brutos nem observações futuras."
+      "message": "Features mensais reconstruídas com TOTALSA, CPIAUCSL e INDPRO reais; diferenças e lags materializados."
     },
     "nhtsa": {
       "state": "fresh",

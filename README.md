@@ -96,6 +96,7 @@ O planejamento resolve um problema linear com PuLP/CBC. Participação assumida,
 │   ├── fetch_energy_prices.py                # Atualização reprodutível de energia
 │   ├── build_data_health.py                  # Geração do perfil de saúde dos snapshots
 │   ├── train_advanced_models.py              # Reexecução de OLS e rede neural
+│   ├── materialize_fred_macro.py             # Materialização rastreável de CPIAUCSL e INDPRO
 │   └── evaluate_risk_engine.py               # Avaliação reproduzível com snapshot FRED real
 ├── tests/                                   # Testes unitários e de integração
 ├── docs/                                    # Arquitetura, diagnóstico, auditorias e referências
@@ -127,6 +128,9 @@ python scripts/fetch_energy_prices.py
 
 # Recalcula a saúde e a proveniência dos snapshots versionados.
 python scripts/build_data_health.py
+
+# Materializa CPIAUCSL e INDPRO reais e reconstrói o feature store macroeconômico.
+PYTHONPATH=src python scripts/materialize_fred_macro.py
 
 # Reexecuta OLS temporal e a rede neural com os snapshots locais.
 python scripts/train_advanced_models.py

@@ -2,69 +2,83 @@
 
 ## Escopo
 
-Esta validação documenta a alteração da matriz de regressão mensal do `src/forecast_model.py`. O modelo mantém `y_lag1`, utiliza drivers macroeconômicos em lags point-in-time e passa a suportar CPI e produção industrial em variação percentual mensal, com `CPI_diff_lag1`, `CPI_diff_lag3` e `PRODIND_diff_lag2`. A implementação também expõe GLSAR iterativo AR(1) como contingência para resíduos persistentes.
+Esta validação documenta a alteração da matriz de regressão mensal do `src/forecast_model.py` e a posterior materialização das duas séries macroeconômicas definidas para o modelo. O contrato mantém `y_lag1`, drivers macroeconômicos em lags point-in-time e três transformações estacionárias: `CPI_diff_lag1`, `CPI_diff_lag3` e `PRODIND_diff_lag2`.
 
-A série de mercado é o `TOTALSA` do FRED, que representa vendas agregadas de veículos leves nos Estados Unidos, e não vendas por marca [1]. As séries macroeconômicas utilizadas na avaliação são `CPIAUCSL` e `INDPRO`, ambas provenientes do FRED [2] [3].
+A série de mercado é `TOTALSA` do FRED, que representa vendas agregadas de veículos leves nos Estados Unidos, não vendas por marca [1]. As séries macroeconômicas são `CPIAUCSL`, Consumer Price Index for All Urban Consumers: All Items in U.S. City Average, índice 1982–1984 = 100 e frequência mensal, e `INDPRO`, Industrial Production: Total Index, índice 2017 = 100 e frequência mensal [2] [3].
 
-## Auditoria do feature store local
+## Materialização do feature store
 
-O feature store local utilizado pelo treinamento reproduzível contém 19 partições mensais agregadas, cobrindo 2025-01 a 2026-07. Essas partições possuem apenas a série de vendas e suas transformações de defasagem; não contêm `cpi`, `CPI_diff`, `CPI_diff_lag1`, `CPI_diff_lag3`, `producao_industrial`, `PRODIND_diff` ou `PRODIND_diff_lag2`. Por esse motivo, o artefato oficial conserva o OLS v2.2 como contrato de código, mas registra somente `y_lag1` em `regressores` e não produz ganho artificial atribuído a dados que não estavam presentes.
+As séries foram baixadas do endpoint público `fredgraph.csv` do FRED e persistidas segundo o contrato Parquet do projeto. Cada observação foi convertida para o esquema `data`, `disponivel_em`, `serie`, `feature` e `valor`. Como o sandbox não possui `FRED_API_KEY`, não havia `realtime_start` autenticado; portanto, a data da observação foi usada como fallback conservador de disponibilidade, explicitamente registrado no manifesto e em `data/feature_store/fred_macro_refresh.json`.
 
-| Item | Resultado observado |
-|---|---:|
-| Partições agregadas do feature store | 19 |
-| Cobertura local | 2025-01 a 2026-07 |
-| Regressores macro disponíveis localmente | Nenhum |
-| Regressores persistidos no artefato oficial | `y_lag1` |
-| Observações da matriz OLS local | 606 |
+| Série | Feature interno | Observações materializadas | Cobertura |
+|---|---|---:|---|
+| `CPIAUCSL` | `cpi` | 606 | 1976-01 a 2026-07 |
+| `INDPRO` | `producao_industrial` | 606 | 1976-01 a 2026-06 |
+| `TOTALSA` preservado localmente | `vendas_saar_milhoes` | 19 | 2025-01 a 2026-07 |
+
+O agregado `source=feature_builder` foi reconstruído para 607 meses e passou a conter `cpi`, `producao_industrial`, `CPI_diff`, `CPI_diff_lag1`, `CPI_diff_lag3`, `PRODIND_diff` e `PRODIND_diff_lag2`. As primeiras observações ficam naturalmente ausentes nas transformações por diferença e defasagem; essas linhas são removidas pela matriz OLS antes do treinamento.
 
 ## Comparação com o backup v2.1
 
-O JSON foi copiado para `data/model_artifacts/model_performance_v2_backup.json` antes do treinamento. Como o feature store local não continha CPI nem produção industrial, as métricas numéricas da execução v2.2 permaneceram iguais às do backup. A mudança funcional está implementada e será ativada automaticamente quando o refresh das fontes FRED materializar as séries macro no feature store.
+O JSON anterior foi preservado em `data/model_artifacts/model_performance_v2_backup.json`. Após a materialização, o treinamento oficial passou a utilizar os três regressores macroeconômicos diferenciais e a matriz final resultou em 599 observações.
 
-| Métrica | Backup v2.1 | OLS v2.2 local | Diferença |
+| Métrica | Backup v2.1 | OLS v2.2 com FRED real | Diferença |
 |---|---:|---:|---:|
-| MAPE médio | 3,5670% | 3,5670% | 0,0000 pp |
-| RMSE médio | 0,7249 | 0,7249 | 0,0000 |
-| Durbin–Watson médio | 1,4258 | 1,4258 | 0,0000 |
-| Durbin–Watson da dobra 3 | 0,5622 | 0,5622 | 0,0000 |
-| Cobertura P10–P90 | 83,33% | 83,33% | 0,00 pp |
+| MAPE médio | 3,5670% | 3,6460% | +0,0790 pp |
+| Desvio do MAPE | 1,1397 pp | 0,7814 pp | −0,3583 pp |
+| MAE médio | 0,5926 | 0,6144 | +0,0218 |
+| RMSE médio | 0,7249 | 0,7491 | +0,0242 |
+| Durbin–Watson médio | 1,4258 | 1,5700 | +0,1442 |
+| Durbin–Watson da dobra 3 | 0,5622 | **1,9211** | **+1,3589** |
+| Cobertura P10–P90 | 83,33% | **88,89%** | **+5,56 pp** |
+| Pinball Loss médio | 0,1903 | 0,1923 | +0,0020 |
 
-## Backtest com macro FRED real
+## Resultado por dobra
 
-Para testar a especificação sem criar dados artificiais, foi feita uma avaliação temporária com `CPIAUCSL` e `INDPRO` reais do FRED, cobrindo 1976-01 a 2026-07. Após a aplicação dos lags e a remoção das primeiras linhas necessárias às transformações, a matriz resultou em 599 observações e incluiu os três regressores diferenciais previstos.
+| Dobra | MAPE | RMSE | Durbin–Watson | Cobertura P10–P90 |
+|---:|---:|---:|---:|---:|
+| 1 | 4,7506% | 1,0189 | 0,9969 | 83,33% |
+| 2 | 3,0655% | 0,6589 | 1,7920 | 83,33% |
+| 3 | 3,1220% | 0,5695 | **1,9211** | 100,00% |
+| **Média** | **3,6460%** | **0,7491** | **1,5700** | **88,89%** |
 
-| Estimador | MAPE médio | RMSE médio | DW médio | DW dobra 3 | Cobertura P10–P90 | Pinball Loss |
-|---|---:|---:|---:|---:|---:|---:|
-| OLS Newey–West | 3,6460% | 0,7491 | 1,5700 | 1,9211 | 88,89% | 0,1923 |
-| GLSAR AR(1) | 3,5833% | 0,7497 | 1,6351 | 2,1210 | 83,33% | 0,1936 |
+A meta específica de DW médio igual ou superior a 1,72 ainda não foi atingida, mas o problema mais severo foi corrigido: a última dobra passou de 0,5622 para 1,9211. A cobertura também superou o mínimo de 75%. O MAPE médio ficou acima da meta agressiva de 2,87% e ligeiramente acima do backup; portanto, a evolução v2.2 melhora a estrutura residual e a cobertura, mas não deve ser apresentada como superior em todas as dimensões preditivas.
 
-O cenário com macro real melhora substancialmente a dobra final, cujo DW passa de 0,5622 no feature store local para 1,9211 no OLS. O GLSAR melhora adicionalmente o DW médio e a dobra final, mas perde cobertura em relação ao OLS nesse recorte. Como as métricas foram obtidas em uma avaliação temporária e o feature store oficial ainda não contém as séries, o GLSAR não foi promovido silenciosamente para o artefato principal.
+## Regressores efetivamente utilizados
+
+O artefato `data/model_artifacts/model_performance_v2.json` registra os regressores presentes na matriz, evitando confundir features implementadas com features realmente disponíveis no treinamento.
+
+| Regres­sor | Papel |
+|---|---|
+| `y_lag1` | Persistência mensal da demanda agregada |
+| `X_CPI_diff_lag1` | Variação percentual do CPI com uma defasagem |
+| `X_CPI_diff_lag3` | Variação percentual do CPI com três defasagens |
+| `X_PRODIND_diff_lag2` | Variação percentual da produção industrial com duas defasagens |
 
 ## Diagnóstico de multicolinearidade
 
-No backtest com macro FRED real, os VIFs permaneceram baixos, sem indicação de colinearidade severa entre a defasagem do target e as diferenças macroeconômicas. O valor de referência usual de atenção não é tratado como uma regra automática de exclusão; a decisão continua subordinada a estabilidade temporal, sinal econômico e desempenho fora da amostra.
+Os VIFs calculados sobre a matriz com dados reais ficaram baixos e não indicam colinearidade severa entre a defasagem do target e as diferenças macroeconômicas. A seleção não remove variáveis apenas por um limiar mecânico; estabilidade temporal, interpretação econômica e desempenho fora da amostra continuam sendo avaliados em conjunto.
 
-| Regres­ sor | VIF |
+| Regres­sor | VIF |
 |---|---:|
 | `y_lag1` | 2,073 |
 | `X_CPI_diff_lag1` | 2,183 |
 | `X_CPI_diff_lag3` | 2,171 |
 | `X_PRODIND_diff_lag2` | 1,044 |
 
-## Decisão sobre GLSAR
+## GLSAR como contingência
 
-GLSAR foi implementado e testado sob o mesmo contrato walk-forward. No ambiente local sem macroeconômicas, o GLSAR apresentou DW médio de 1,4330 e DW de 0,6235 na última dobra, portanto não resolveu a causa observada. No cenário com CPI e INDPRO reais, apresentou DW médio de 1,6351 e DW final de 2,1210, mas cobertura de 83,33% contra 88,89% do OLS. A decisão técnica é manter Newey–West como estimador principal, manter GLSAR disponível como plano B e reexecutar a seleção após a atualização oficial do feature store.
+GLSAR iterativo AR(1) permanece implementado e comparável no mesmo walk-forward. No cenário oficial agora materializado, o backtest GLSAR apresentou DW médio de 1,6351, DW de 2,1210 na terceira dobra, MAPE médio de 3,5833% e cobertura de 83,33%. Ele melhora o DW e o MAPE em relação ao OLS v2.2, mas reduz a cobertura probabilística. A decisão atual é manter Newey–West como estimador principal e GLSAR como plano B explícito, sem substituir o modelo principal por uma única métrica.
 
-> A próxima atualização das features deve ser executada antes de qualquer conclusão sobre o ganho final de CPI e produção industrial. Sem a presença dessas séries no feature store, nenhuma alteração de especificação pode alterar retroativamente o backtest local.
+> A evolução v2.2 está validada quanto à disponibilidade das séries e à correção da autocorrelação da última dobra: o DW subiu de 0,5622 para 1,9211. O critério agregado completo ainda requer melhoria adicional do DW médio e do MAPE.
 
 ## Reprodutibilidade
 
-O treinamento oficial é executado por `python3 scripts/train_advanced_models.py`. O artefato `data/model_artifacts/model_performance_v2.json` contém a especificação, os regressores efetivos, as métricas por dobra e os critérios de aceite. O backup da execução anterior permanece em `data/model_artifacts/model_performance_v2_backup.json`.
+A materialização pode ser reproduzida por `PYTHONPATH=src python3 scripts/materialize_fred_macro.py`. O treinamento oficial é executado por `PYTHONPATH=src python3 scripts/train_advanced_models.py`. O JSON atualizado contém a especificação, os regressores efetivos, as métricas por dobra e os critérios de aceite. O backup v2.1 permanece preservado para comparação.
 
 ## Referências
 
 [1]: https://fred.stlouisfed.org/series/TOTALSA "FRED — Total Vehicle Sales"
-[2]: https://fred.stlouisfed.org/series/CPIAUCSL "FRED — Consumer Price Index"
-[3]: https://fred.stlouisfed.org/series/INDPRO "FRED — Industrial Production Index"
+[2]: https://fred.stlouisfed.org/series/CPIAUCSL "FRED — Consumer Price Index for All Urban Consumers: All Items"
+[3]: https://fred.stlouisfed.org/series/INDPRO "FRED — Industrial Production: Total Index"
 [4]: https://www.statsmodels.org/stable/generated/statsmodels.regression.linear_model.GLSAR.html "Statsmodels — GLSAR"
