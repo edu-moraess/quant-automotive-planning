@@ -1,6 +1,9 @@
 """Forecast engine modular com benchmarks e validação walk-forward por horizonte.
 
-A regressão de defasagem permanece o candidato principal quando validada fora da
+Status arquitetural: planejado, não integrado à cadeia executada pelo app. A
+fonte de verdade operacional permanece em ``src.analysis``; este módulo mantém
+o contrato modular e os testes para uma integração futura controlada. A
+regressão de defasagem permanece o candidato principal quando validada fora da
 amostra. Seasonal Naive, Holt-Winters e AutoReg são benchmarks comparativos.
 """
 
