@@ -72,7 +72,7 @@ Os VIFs calculados sobre a matriz com dados reais ficaram baixos e não indicam 
 
 ## GLSAR como contingência
 
-GLSAR iterativo AR(1) permanece implementado e comparável no mesmo walk-forward. No cenário oficial agora materializado, o backtest GLSAR apresentou DW médio de 1,6351, DW de 2,1210 na terceira dobra, MAPE médio de 3,5833% e cobertura de 83,33%. Ele melhora o DW e o MAPE em relação ao OLS v2.2, mas reduz a cobertura probabilística. A decisão atual é manter Newey–West como estimador principal e GLSAR como plano B explícito, sem substituir o modelo principal por uma única métrica.
+GLSAR iterativo AR(1) permanece implementado e comparável no mesmo walk-forward. No cenário oficial agora materializado, o backtest GLSAR apresentou DW médio de 1,6351, DW de 2,1210 na terceira dobra, MAPE médio de 3,5833% e cobertura de 83,33%. Ele melhora o DW e o MAPE em relação ao OLS v2.2, mas reduz a cobertura probabilística. A decisão atual é manter Newey–West como estimador principal e GLSAR como plano B explícito, sem substituir o modelo principal por uma única métrica. A investigação por ACF/PACF, CUSUM, teste de `y_lag12`, DW centrado e comparação clássico/HAC está documentada em [`docs/DIAGNOSTICO_AUTOCORRELACAO_OLS.md`](DIAGNOSTICO_AUTOCORRELACAO_OLS.md). A causa raiz confirmada foi instabilidade do DW bruto na primeira dobra por viés de nível e erro extremo em horizonte OOS curto; não foi confirmada sazonalidade ausente suficiente nem quebra estrutural estatisticamente demonstrada.
 
 > A evolução v2.2 está validada quanto à disponibilidade das séries e à correção da autocorrelação da última dobra: o DW subiu de 0,5622 para 1,9211. O critério agregado completo ainda requer melhoria adicional do DW médio e do MAPE.
 
