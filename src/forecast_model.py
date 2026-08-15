@@ -423,21 +423,35 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
         "coverage": resultados["coverage_p10_p90"] >= metas["coverage_p10_p90_min"],
     }
 
+    effective_regressors = metrics.get("regressores", [])
+    regressor_labels = {
+        "y_lag1": "y_lag1",
+        "X_CPI_diff_lag1": "CPI_diff_lag1",
+        "X_CPI_diff_lag3": "CPI_diff_lag3",
+        "X_PRODIND_diff_lag2": "PRODIND_diff_lag2",
+        "X_fed_funds_pct_lag2": "FEDFUNDS lag-2",
+    }
+    effective_description = (
+        ", ".join(regressor_labels.get(regressor, regressor) for regressor in effective_regressors)
+        or "nenhum regressor disponível"
+    )
+    estimator_name = metrics.get("estimador", "newey_west")
     payload = {
-        "modelo": (
-            "OLS Newey-West (v2.2)"
-            if metrics.get("estimador", "newey_west") == "newey_west"
-            else "GLSAR (Cochrane-Orcutt)"
-        ),
+        "modelo": "OLS Newey-West (v2.2)" if estimator_name == "newey_west" else "GLSAR (Cochrane-Orcutt)",
         "descricao": (
-            "OLS com erros-padrão HAC (Newey-West). Seleção temporal: y_lag1, "
-            "FEDFUNDS lag-2, GASREG lag-1, Desemprego, Financiamento auto, "
-            "Confiança do consumidor, Emprego total, CPI_diff_lag1, CPI_diff_lag3 "
-            "e PRODIND_diff_lag2. Níveis CPI e produção industrial não utilizados."
-            if metrics.get("estimador", "newey_west") == "newey_west"
-            else "GLSAR iterativo com estrutura AR(1). Matriz temporal: y_lag1, "
-            "drivers macro disponíveis e diferenças CPI/PRODIND quando presentes."
+            "OLS com erros-padrão HAC (Newey-West). Regressores efetivamente estimados nesta execução: "
+            f"{effective_description}. O artefato é diagnóstico de drivers e não alimenta o forecast "
+            "principal nem o planejamento operacional do aplicativo."
+            if estimator_name == "newey_west"
+            else "GLSAR iterativo com estrutura AR(1). Regressores efetivamente estimados nesta execução: "
+            f"{effective_description}. O artefato é diagnóstico de drivers e não alimenta o forecast "
+            "principal nem o planejamento operacional do aplicativo."
         ),
+        "papel_no_app": "diagnostico_de_drivers",
+        "nao_alimenta_forecast_principal": True,
+        "forecast_principal_app": "Regressão com defasagens (src/analysis.py e src/forecast_engine.py)",
+        "status_operacional": "aprovado" if all(aceite.values()) else "nao_aprovado",
+        "criterios_aceite_reprovados": [nome for nome, aprovado in aceite.items() if not aprovado],
         "n_folds": metrics["n_folds"],
         "fold_size_meses": metrics["fold_size"],
         "n_obs_treino_final": metrics["n_obs_treino_final"],

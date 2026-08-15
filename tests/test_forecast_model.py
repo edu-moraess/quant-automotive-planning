@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -9,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from data.contracts import TimeWindow
 from data.feature_builder import FeatureBuilder
-from forecast_model import build_regression_matrix, walk_forward_ols
+from forecast_model import build_regression_matrix, save_performance_v2, walk_forward_ols
 
 
 def test_feature_builder_materializes_macro_differences_and_lags():
@@ -45,3 +46,23 @@ def test_walk_forward_supports_newey_west_and_glsar_contracts():
         assert len(result["fold_metrics"]) == 3
         assert result["mape_medio"] >= 0
         assert 0 <= result["coverage_p10_p90"] <= 1
+
+
+def test_performance_artifact_describes_effective_regressors_and_app_role(tmp_path):
+    matrix = build_regression_matrix()
+    metrics = walk_forward_ols(matrix, estimator="newey_west")
+    path = save_performance_v2(metrics, tmp_path / "model_performance_v2.json")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["regressores"] == [
+        "y_lag1",
+        "X_CPI_diff_lag1",
+        "X_CPI_diff_lag3",
+        "X_PRODIND_diff_lag2",
+    ]
+    assert payload["papel_no_app"] == "diagnostico_de_drivers"
+    assert payload["nao_alimenta_forecast_principal"] is True
+    assert "Regressores efetivamente estimados nesta execução" in payload["descricao"]
+    assert "FEDFUNDS" not in payload["descricao"]
+    assert payload["status_operacional"] == "nao_aprovado"
+    assert set(payload["criterios_aceite_reprovados"]) == {"durbin_watson", "mape"}

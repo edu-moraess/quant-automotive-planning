@@ -14,7 +14,7 @@ A plataforma integra a série mensal agregada `TOTALSA` do FRED, o catálogo pú
 | **Portfólio EPA** | Análise por marca, modelo, segmento e tecnologia; posicionamento de eficiência e emissões; auditoria temporal do campo `make`. |
 | **Energia & combustível** | Séries reais de energia, custo de referência por 100 milhas, sensibilidade a choques de preço, correlação de Spearman e comparação tecnológica controlada. |
 | **Mercado & forecast** | Forecast Engine modular com regressão de defasagens como modelo principal, benchmarks, walk-forward por horizonte, seleção de lags OOS e intervalos calibrados por resíduos OOS. |
-| **Modelos integrados** | OLS temporal v2.2 com diferenças percentuais de CPI/produção industrial, lags explícitos, Newey–West, contingência GLSAR e diagnóstico de VIF, Durbin–Watson, Ljung–Box, ARCH, Breusch–Pagan e Jarque–Bera; MLP de eficiência com validação temporal. |
+| **Modelos integrados** | OLS temporal v2.2 como diagnóstico de drivers, com diferenças percentuais de CPI/produção industrial, lags explícitos, Newey–West, contingência GLSAR e diagnósticos econométricos; MLP de eficiência com validação temporal. O OLS v2.2 não alimenta o forecast principal. |
 | **Risco & cenários** | Monte Carlo reprodutível, stockout probability, backlog risk, capacity-at-risk, VaR, CVaR, cenários parametrizados e sensibilidade com status de transmissão. |
 | **Planejamento** | Programação linear com capacidade regular e extra, estoque inicial e de segurança, backlog, setup, custo e otimização PuLP por caminhos amostrados. |
 | **Decisão** | Sinais green/amber/red/unavailable, confiança de disponibilidade das evidências, ações condicionais e limitações explícitas. |
@@ -37,11 +37,13 @@ Os dados locais em `data/` preservam os *snapshots* utilizados. O artefato `data
 
 ### Mercado e forecast probabilístico
 
-O motor de mercado valida esquema e frequência, consolida a série em base mensal e executa diagnósticos de estacionariedade, decomposição STL e autocorrelação. O `src/forecast_engine.py` formaliza o contrato `fit/predict/forecast/evaluate/diagnostics`, mantém a **regressão de defasagens** como candidato principal e compara Seasonal Naive, Holt–Winters e AutoReg como benchmarks. O walk-forward por horizonte cobre 1, 3, 6 e 12 meses; conjuntos de lags são comparados por erro fora da amostra, nunca por R² de treino. A seleção pode priorizar a regressão principal somente quando seu MAPE estiver dentro da tolerância declarada.
+O motor de mercado valida esquema e frequência, consolida a série em base mensal e executa diagnósticos de estacionariedade, decomposição STL e autocorrelação. O `src/forecast_engine.py` formaliza o contrato `fit/predict/forecast/evaluate/diagnostics`, mantém a **regressão de defasagens** como candidato principal e compara Seasonal Naive, Holt–Winters e AutoReg como benchmarks. O walk-forward por horizonte cobre 1, 3, 6 e 12 meses; conjuntos de lags são comparados por erro fora da amostra, nunca por R² de treino. A seleção pode priorizar a regressão principal somente quando seu MAPE estiver dentro da tolerância declarada. Esse forecast principal é distinto do OLS Newey–West v2.2, que permanece no painel de drivers para diagnóstico econométrico.
 
 O modelo escolhido é reajustado sobre o histórico. O módulo `probabilistic_forecast.py` compara Normal, Student-t, bootstrap iid e moving block usando coverage e Pinball Loss em calibração prequential. Somente resíduos de dobras anteriores à dobra avaliada entram na calibração. O método, seed, origem dos resíduos, horizonte, período de treino e métricas de validação são persistidos nos metadados do forecast. O intervalo representa incerteza empírica de previsão, e não um limite causal ou garantia operacional.
 
 ### OLS Newey–West v2.2 e autocorrelação residual
+
+O OLS v2.2 é um **artefato diagnóstico**, não o motor de previsão utilizado no planejamento. Ele serve para avaliar persistência residual, contribuição relativa de drivers e adequação econométrica. O forecast operacional segue o contrato modular da Regressão com defasagens em `src/analysis.py` e `src/forecast_engine.py`.
 
 O `src/forecast_model.py` monta uma matriz mensal point-in-time a partir do snapshot `TOTALSA` e do feature store agregado. Além de `y_lag1`, juros Fed em lag 2 e drivers macro em lag 1, CPI e produção industrial são tratados como variações percentuais mensais: `CPI_diff_lag1`, `CPI_diff_lag3` e `PRODIND_diff_lag2`. Se o builder já tiver materializado as colunas, elas são consumidas diretamente; se houver apenas os níveis `cpi` e `producao_industrial`, a diferença é derivada no momento da montagem. Na ausência da fonte, o regressor é omitido e o artefato registra o contrato efetivamente utilizado.
 

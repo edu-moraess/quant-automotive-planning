@@ -6,6 +6,8 @@ Esta validação documenta a alteração da matriz de regressão mensal do `src/
 
 A série de mercado é `TOTALSA` do FRED, que representa vendas agregadas de veículos leves nos Estados Unidos, não vendas por marca [1]. As séries macroeconômicas são `CPIAUCSL`, Consumer Price Index for All Urban Consumers: All Items in U.S. City Average, índice 1982–1984 = 100 e frequência mensal, e `INDPRO`, Industrial Production: Total Index, índice 2017 = 100 e frequência mensal [2] [3].
 
+> **Papel no aplicativo.** O OLS Newey–West v2.2 é um artefato de diagnóstico de drivers e autocorrelação. Ele não alimenta o forecast principal nem o planejamento operacional. O forecast usado pelo app é a Regressão com defasagens implementada em `src/analysis.py` e registrada no Forecast Engine; o OLS aparece na seção de drivers para interpretação econométrica.
+
 ## Materialização do feature store
 
 As séries foram baixadas do endpoint público `fredgraph.csv` do FRED e persistidas segundo o contrato Parquet do projeto. Cada observação foi convertida para o esquema `data`, `disponivel_em`, `serie`, `feature` e `valor`. Como o sandbox não possui `FRED_API_KEY`, não havia `realtime_start` autenticado; portanto, a data da observação foi usada como fallback conservador de disponibilidade, explicitamente registrado no manifesto e em `data/feature_store/fred_macro_refresh.json`.
@@ -46,7 +48,7 @@ A meta específica de DW médio igual ou superior a 1,72 ainda não foi atingida
 
 ## Regressores efetivamente utilizados
 
-O artefato `data/model_artifacts/model_performance_v2.json` registra os regressores presentes na matriz, evitando confundir features implementadas com features realmente disponíveis no treinamento.
+O artefato `data/model_artifacts/model_performance_v2.json` registra os regressores presentes na matriz, evitando confundir features implementadas com features realmente disponíveis no treinamento. A descrição do JSON é construída a partir desse array e não lista candidatos que foram omitidos. Quando o critério de aceite falha, o artefato também registra `status_operacional: nao_aprovado` e os critérios reprovados.
 
 | Regres­sor | Papel |
 |---|---|
@@ -74,7 +76,7 @@ GLSAR iterativo AR(1) permanece implementado e comparável no mesmo walk-forward
 
 ## Reprodutibilidade
 
-A materialização pode ser reproduzida por `PYTHONPATH=src python3 scripts/materialize_fred_macro.py`. O treinamento oficial é executado por `PYTHONPATH=src python3 scripts/train_advanced_models.py`. O JSON atualizado contém a especificação, os regressores efetivos, as métricas por dobra e os critérios de aceite. O backup v2.1 permanece preservado para comparação.
+A materialização pode ser reproduzida por `PYTHONPATH=src python3 scripts/materialize_fred_macro.py`. O treinamento oficial é executado por `PYTHONPATH=src python3 scripts/train_advanced_models.py`. O JSON atualizado contém a especificação, os regressores efetivos, o papel no aplicativo, as métricas por dobra e os critérios de aceite. O backup v2.1 permanece preservado para comparação.
 
 ## Referências
 

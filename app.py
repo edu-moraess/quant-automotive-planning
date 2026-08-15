@@ -1513,12 +1513,12 @@ with tab_market:
         )
         st.dataframe(diagnostics_display.style.format({"Valor": "{:.4f}"}), width="stretch", hide_index=True)
 
-    # Gráfico de coeficientes padronizados do modelo OLS Newey-West.
-    with st.expander("Drivers do forecast — OLS Newey-West"):
+    # Gráfico de coeficientes padronizados do OLS, usado somente para diagnóstico.
+    with st.expander("Drivers diagnósticos — OLS Newey-West"):
         st.caption(
-            "Coeficientes padronizados do modelo OLS com erros-padrão HAC (Newey-West). "
-            "Barras maiores indicam maior contribuição relativa para o forecast; "
-            "as séries macroeconômicas entram quando o feature store é atualizado com as chaves de API."
+            "Este OLS estima a contribuição relativa dos drivers e seus resíduos. "
+            "Ele não alimenta o forecast principal nem o planejamento operacional; "
+            "o forecast usado no app permanece a Regressão com defasagens do Forecast Engine."
         )
         try:
             import sys as _sys  # noqa: PLC0415
@@ -1527,14 +1527,36 @@ with tab_market:
             from forecast_model import build_regression_matrix, walk_forward_ols  # noqa: PLC0415
 
             @st.cache_data(show_spinner=False)
-            def _load_ols_coefficients(snapshot_mtime: float) -> pd.DataFrame:
-                """Treina o modelo OLS NW e retorna coeficientes padronizados; cache por mtime do snapshot."""
+            def _load_ols_coefficients(snapshot_mtime: float, feature_store_mtime: float) -> dict:
+                """Treina o OLS diagnóstico e invalida o cache quando dados de mercado mudam."""
                 matrix = build_regression_matrix()
                 results = walk_forward_ols(matrix)
-                return results["coeficientes_padronizados"]
+                return {
+                    "coeficientes": results["coeficientes_padronizados"],
+                    "regressores": results.get("regressores", []),
+                    "mape": results["mape_medio"],
+                    "dw_medio": results["durbin_watson_medio"],
+                    "dw_ultima_dobra": results["durbin_watson_ultima_dobra"],
+                    "coverage": results["coverage_p10_p90"],
+                }
 
             _snapshot_mtime = MARKET_SNAPSHOT.stat().st_mtime if MARKET_SNAPSHOT.exists() else 0.0
-            coef_df = _load_ols_coefficients(_snapshot_mtime)
+            _feature_store_manifest = DATA_DIR / "feature_store" / "manifest.json"
+            _feature_store_mtime = _feature_store_manifest.stat().st_mtime if _feature_store_manifest.exists() else 0.0
+            ols_diagnostic = _load_ols_coefficients(_snapshot_mtime, _feature_store_mtime)
+            coef_df = ols_diagnostic["coeficientes"]
+            st.markdown("#### Status do artefato diagnóstico")
+            vertical_metric("Papel no aplicativo", "Diagnóstico de drivers")
+            vertical_metric("Uso operacional", "Não alimenta forecast nem planejamento")
+            vertical_metric("Regressores efetivos", ", ".join(ols_diagnostic["regressores"]))
+            vertical_metric("MAPE walk-forward", f"{ols_diagnostic['mape']:.2f}%")
+            vertical_metric("Durbin–Watson médio", f"{ols_diagnostic['dw_medio']:.3f}")
+            vertical_metric("Durbin–Watson última dobra", f"{ols_diagnostic['dw_ultima_dobra']:.3f}")
+            vertical_metric("Cobertura P10–P90", f"{ols_diagnostic['coverage']:.2%}")
+            st.warning(
+                "Artefato não aprovado para uso operacional: os critérios de DW médio e MAPE não foram atingidos. "
+                "A seção abaixo é interpretativa e não substitui o forecast principal."
+            )
             if not coef_df.empty:
                 fig_coef = go.Figure()
                 colors = [ORANGE if v >= 0 else RED for v in coef_df["coef_norm"]]
