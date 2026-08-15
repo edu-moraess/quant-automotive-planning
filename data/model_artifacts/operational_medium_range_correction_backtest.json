@@ -1,0 +1,610 @@
+{
+  "protocol": {
+    "source": "data/TOTALSA_snapshot.csv real versionado",
+    "n_folds": 4,
+    "fold_size_months": 6,
+    "base_specification": "Ridge alpha=1 com lag_1, lag_12, tendência e dummies mensais",
+    "correction_methods": {
+      "error_ar1": "AR(1) dos erros one-step expansivos estimados apenas no treino de cada dobra",
+      "bias_recent6": "correção aditiva pela média dos seis erros one-step mais recentes do treino"
+    },
+    "no_future_information": true,
+    "metrics": [
+      "MAPE",
+      "RMSE",
+      "WAPE",
+      "sMAPE",
+      "MASE",
+      "Ljung-Box agrupado",
+      "coverage",
+      "Pinball Loss"
+    ],
+    "acceptance_policy": {
+      "version": "2026.08",
+      "alpha": 0.05,
+      "grouped_ljung_box_lag": 3,
+      "mape_acceptance_max_pct": 4.0,
+      "mape_nominal_target_max_pct": 2.87,
+      "coverage_acceptance_min": 0.75,
+      "coverage_nominal_target": 0.8,
+      "diagnostic_tests_required": [
+        "ARCH",
+        "CUSUM"
+      ]
+    }
+  },
+  "decision": {
+    "forecast_operational_changed": false,
+    "promotion_allowed_in_stage": false,
+    "selection_rule": "comparar contra baseline sem R2 in-sample; exigir melhora conjunta sem piora material de erro ou cobertura"
+  },
+  "methods": [
+    {
+      "method": "baseline_current",
+      "lags": [
+        1,
+        12
+      ],
+      "n_folds": 4,
+      "fold_size_months": 6,
+      "overall_metrics": {
+        "mape": 3.974220558160117,
+        "mae": 0.6631302906558596,
+        "rmse": 0.8122699642615383,
+        "wape": 3.9970621052516893,
+        "smape": 4.021056496961925,
+        "mase": 1.0594161703109646
+      },
+      "fold_metrics": [
+        {
+          "fold": 1,
+          "periodo_oos": "08/2024–01/2025",
+          "mape": 2.916157832137971,
+          "mae": 0.48672265404800924,
+          "rmse": 0.5605143909724556,
+          "wape": 2.95069861301599,
+          "smape": 2.949308613532668,
+          "mase": 0.7781080904591952,
+          "mean_oos_error": 0.18230880330105462,
+          "oos_errors": [
+            -0.5248143672043373,
+            -0.1349217906851088,
+            0.32781344113337596,
+            0.7699790497405559,
+            0.9093018811732598,
+            -0.25350539435141783
+          ],
+          "train_error_count": 570,
+          "train_error_mean": -0.01522612059336163,
+          "train_error_std": 1.0185141838748568,
+          "correction": {
+            "corrections": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "fold": 2,
+          "periodo_oos": "02/2025–07/2025",
+          "mape": 4.652992059898307,
+          "mae": 0.8216218847447324,
+          "rmse": 1.125106397556018,
+          "wape": 4.848518621557309,
+          "smape": 4.856033099847826,
+          "mase": 1.3160776173155682,
+          "mean_oos_error": 0.7518606679442362,
+          "oos_errors": [
+            0.3086717712617748,
+            2.2166271409359517,
+            1.4544979162842786,
+            -0.20928365040148833,
+            0.09389583050557704,
+            0.6467549990793238
+          ],
+          "train_error_count": 576,
+          "train_error_mean": -0.015096095259726007,
+          "train_error_std": 1.0148093746610691,
+          "correction": {
+            "corrections": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "fold": 3,
+          "periodo_oos": "08/2025–01/2026",
+          "mape": 4.135494959840794,
+          "mae": 0.645432445669254,
+          "rmse": 0.8416725919966805,
+          "wape": 3.9868169805070512,
+          "smape": 3.991153948516299,
+          "mase": 1.0285417298752422,
+          "mean_oos_error": -0.6303995618539903,
+          "oos_errors": [
+            -0.13308574417886376,
+            0.04509865144579095,
+            -0.7979623597426322,
+            -0.6613176559998699,
+            -0.54365651758933,
+            -1.691473745059037
+          ],
+          "train_error_count": 582,
+          "train_error_mean": -0.01267594454476981,
+          "train_error_std": 1.0150786450722102,
+          "correction": {
+            "corrections": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "fold": 4,
+          "periodo_oos": "02/2026–07/2026",
+          "mape": 4.192237380763396,
+          "mae": 0.6987441781614429,
+          "rmse": 0.7217864765209988,
+          "wape": 4.202214205926406,
+          "smape": 4.287730325950905,
+          "mase": 1.1149372435938527,
+          "mean_oos_error": 0.6987441781614429,
+          "oos_errors": [
+            0.534813056998221,
+            0.8756876631559418,
+            0.6861670220348834,
+            0.6971277274905567,
+            0.9620607426347689,
+            0.43660885665428495
+          ],
+          "train_error_count": 588,
+          "train_error_mean": -0.016052123694448184,
+          "train_error_std": 1.011752845144338,
+          "correction": {
+            "corrections": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        }
+      ],
+      "ljung_box_oos_grouped": {
+        "3": {
+          "statistic": 4.6423608406870285,
+          "pvalue": 0.1999381317818803
+        },
+        "6": {
+          "statistic": 9.163841053025694,
+          "pvalue": 0.16457127337500188
+        },
+        "12": {
+          "statistic": 23.322049515129642,
+          "pvalue": 0.025112988864933194
+        }
+      },
+      "prequential_interval_fixed": {
+        "coverage_p10_p90": 0.6666666666666666,
+        "pinball_loss_medio": 0.2746371367368685,
+        "observacoes_avaliadas": 18,
+        "dobras_avaliadas": 3,
+        "escalas_volatilidade": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "n_oos_residuals": 24,
+      "oos_mean_error": 0.25062852188818585,
+      "acceptance": {
+        "ljung_box_primary": true,
+        "mape_floor": true,
+        "coverage_floor": false,
+        "mape_nominal": false,
+        "coverage_nominal": false
+      },
+      "delta_vs_baseline": {
+        "mape_pp": 0.0,
+        "rmse": 0.0,
+        "mae": 0.0,
+        "wape_pp": 0.0,
+        "smape_pp": 0.0,
+        "mase": 0.0,
+        "coverage_pp": 0.0,
+        "pinball": 0.0,
+        "ljung_box_lag3_pvalue": 0.0,
+        "ljung_box_lag12_pvalue": 0.0
+      }
+    },
+    {
+      "method": "error_ar1",
+      "lags": [
+        1,
+        12
+      ],
+      "n_folds": 4,
+      "fold_size_months": 6,
+      "overall_metrics": {
+        "mape": 3.9442727409235347,
+        "mae": 0.6587117326229995,
+        "rmse": 0.8140557703496327,
+        "wape": 3.9698024210617238,
+        "smape": 3.9942308197824232,
+        "mase": 1.0523702829407968
+      },
+      "fold_metrics": [
+        {
+          "fold": 1,
+          "periodo_oos": "08/2024–01/2025",
+          "mape": 2.890285662972189,
+          "mae": 0.48297047370842616,
+          "rmse": 0.5623478287610972,
+          "wape": 2.9279514628027976,
+          "smape": 2.927007420653581,
+          "mase": 0.7721095985977426,
+          "mean_oos_error": 0.20190401895605317,
+          "oos_errors": [
+            -0.48464386290509687,
+            -0.12085454435262832,
+            0.3437417839142789,
+            0.7857747010392409,
+            0.9251069930399183,
+            -0.23770095699939375
+          ],
+          "train_error_count": 570,
+          "train_error_mean": -0.01522612059336163,
+          "train_error_std": 1.0185141838748568,
+          "correction": {
+            "intercept": -0.016931301960244453,
+            "phi": -0.07129747753295444,
+            "n": 570.0,
+            "corrections": [
+              -0.04017050429924013,
+              -0.01406724633248193,
+              -0.015928342780903788,
+              -0.015795651298685768,
+              -0.01580511186665802,
+              -0.01580443735202557
+            ]
+          }
+        },
+        {
+          "fold": 2,
+          "periodo_oos": "02/2025–07/2025",
+          "mape": 4.64512069073255,
+          "mae": 0.8209840536155557,
+          "rmse": 1.1341126853780599,
+          "wape": 4.8447546807901,
+          "smape": 4.8518586596507,
+          "mase": 1.3150559365542318,
+          "mean_oos_error": 0.7564027579446589,
+          "oos_errors": [
+            0.2536575848144338,
+            2.237172156795058,
+            1.4696532272434304,
+            -0.1937438870126904,
+            0.10940817056166807,
+            0.6622692952660536
+          ],
+          "train_error_count": 576,
+          "train_error_mean": -0.015096095259726007,
+          "train_error_std": 1.0148093746610691,
+          "correction": {
+            "intercept": -0.016620805157945635,
+            "phi": -0.07133088671443227,
+            "n": 576.0,
+            "corrections": [
+              0.05501418644734164,
+              -0.020545015859107618,
+              -0.015155310959153415,
+              -0.015539763388796268,
+              -0.015512340056090326,
+              -0.015514296186728905
+            ]
+          }
+        },
+        {
+          "fold": 3,
+          "periodo_oos": "08/2025–01/2026",
+          "mape": 4.036056570129422,
+          "mae": 0.6292564512834963,
+          "rmse": 0.8309052671351961,
+          "wape": 3.886898345293641,
+          "smape": 3.895265503057678,
+          "mase": 1.002764151819451,
+          "mean_oos_error": -0.6107656462894457,
+          "oos_errors": [
+            -0.07890763072211371,
+            0.05547241498215172,
+            -0.7844928235706075,
+            -0.6480669065060916,
+            -0.5303903058455042,
+            -1.6782086260745093
+          ],
+          "train_error_count": 582,
+          "train_error_mean": -0.01267594454476981,
+          "train_error_std": 1.0150786450722102,
+          "correction": {
+            "intercept": -0.014202678276472997,
+            "phi": -0.0706727218024695,
+            "n": 582.0,
+            "corrections": [
+              -0.054178113456750804,
+              -0.010373763536361418,
+              -0.013469536172023124,
+              -0.013250749493779307,
+              -0.013266211743824918,
+              -0.013265118984529005
+            ]
+          }
+        },
+        {
+          "fold": 4,
+          "periodo_oos": "02/2026–07/2026",
+          "mape": 4.205628039859978,
+          "mae": 0.7016359518845201,
+          "rmse": 0.7288573001241778,
+          "wape": 4.219605195360357,
+          "smape": 4.302791695767735,
+          "mase": 1.1195514447917623,
+          "mean_oos_error": 0.7016359518845201,
+          "oos_errors": [
+            0.46421068245819797,
+            0.8983018152821103,
+            0.7021656856534104,
+            0.7135958860555256,
+            0.9784955815885752,
+            0.45304606026930117
+          ],
+          "train_error_count": 588,
+          "train_error_mean": -0.016052123694448184,
+          "train_error_std": 1.011752845144338,
+          "correction": {
+            "intercept": -0.017603568551709872,
+            "phi": -0.07096905177910498,
+            "n": 588.0,
+            "corrections": [
+              0.07060237454002359,
+              -0.02261415212616857,
+              -0.015998663618527257,
+              -0.01646815856497013,
+              -0.016434838953805996,
+              -0.016437203615015963
+            ]
+          }
+        }
+      ],
+      "ljung_box_oos_grouped": {
+        "3": {
+          "statistic": 4.749443516940338,
+          "pvalue": 0.19109076507394235
+        },
+        "6": {
+          "statistic": 9.215958515066236,
+          "pvalue": 0.16179203243096477
+        },
+        "12": {
+          "statistic": 23.200035338126302,
+          "pvalue": 0.026074918172465156
+        }
+      },
+      "prequential_interval_fixed": {
+        "coverage_p10_p90": 0.6666666666666666,
+        "pinball_loss_medio": 0.27037014790976793,
+        "observacoes_avaliadas": 18,
+        "dobras_avaliadas": 3,
+        "escalas_volatilidade": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "n_oos_residuals": 24,
+      "oos_mean_error": 0.2622942706239466,
+      "acceptance": {
+        "ljung_box_primary": true,
+        "mape_floor": true,
+        "coverage_floor": false,
+        "mape_nominal": false,
+        "coverage_nominal": false
+      },
+      "delta_vs_baseline": {
+        "mape_pp": -0.029947817236582353,
+        "rmse": 0.0017858060880944215,
+        "mae": -0.004418558032860065,
+        "wape_pp": -0.027259684189965494,
+        "smape_pp": -0.02682567717950146,
+        "mase": -0.007045887370167758,
+        "coverage_pp": 0.0,
+        "pinball": -0.004266988827100582,
+        "ljung_box_lag3_pvalue": -0.008847366707937954,
+        "ljung_box_lag12_pvalue": 0.000961929307531962
+      }
+    },
+    {
+      "method": "bias_recent6",
+      "lags": [
+        1,
+        12
+      ],
+      "n_folds": 4,
+      "fold_size_months": 6,
+      "overall_metrics": {
+        "mape": 4.814370304383519,
+        "mae": 0.8006293574555026,
+        "rmse": 0.9351823782233547,
+        "wape": 4.832262770774154,
+        "smape": 4.870105898648767,
+        "mase": 1.2787112520499329
+      },
+      "fold_metrics": [
+        {
+          "fold": 1,
+          "periodo_oos": "08/2024–01/2025",
+          "mape": 2.9284801207730737,
+          "mae": 0.48672265404800985,
+          "rmse": 0.5392513727631598,
+          "wape": 2.9506986130159936,
+          "smape": 2.9468601200787354,
+          "mase": 0.7781080904591962,
+          "mean_oos_error": 0.09925804904788205,
+          "oos_errors": [
+            -0.6078651214575093,
+            -0.21797254493828433,
+            0.24476268688020397,
+            0.6869282954873839,
+            0.8262511269200878,
+            -0.3365561486045898
+          ],
+          "train_error_count": 570,
+          "train_error_mean": -0.01522612059336163,
+          "train_error_std": 1.0185141838748568,
+          "correction": {
+            "window": 6,
+            "bias": 0.08305075425317376
+          }
+        },
+        {
+          "fold": 2,
+          "periodo_oos": "02/2025–07/2025",
+          "mape": 4.663518201109299,
+          "mae": 0.8234510104542926,
+          "rmse": 1.1269417361521625,
+          "wape": 4.85931257706,
+          "smape": 4.867331648225028,
+          "mase": 1.3190075190748871,
+          "mean_oos_error": 0.7546043565085766,
+          "oos_errors": [
+            0.3114154598261152,
+            2.219370829500292,
+            1.457241604848619,
+            -0.20653996183714796,
+            0.09663951906991741,
+            0.6494986876436641
+          ],
+          "train_error_count": 576,
+          "train_error_mean": -0.015096095259726007,
+          "train_error_std": 1.0148093746610691,
+          "correction": {
+            "window": 6,
+            "bias": -0.0027436885643418543
+          }
+        },
+        {
+          "fold": 3,
+          "periodo_oos": "08/2025–01/2026",
+          "mape": 5.406241527842372,
+          "mae": 0.8500580859450141,
+          "rmse": 1.0166650844861393,
+          "wape": 5.25078346185215,
+          "smape": 5.199068942759876,
+          "mase": 1.354626994782905,
+          "mean_oos_error": -0.8500580859450141,
+          "oos_errors": [
+            -0.3527442682698876,
+            -0.17455987264523287,
+            -1.017620883833656,
+            -0.8809761800908937,
+            -0.7633150416803538,
+            -1.9111322691500607
+          ],
+          "train_error_count": 582,
+          "train_error_mean": -0.01267594454476981,
+          "train_error_std": 1.0150786450722102,
+          "correction": {
+            "window": 6,
+            "bias": 0.21965852409102501
+          }
+        },
+        {
+          "fold": 4,
+          "periodo_oos": "02/2026–07/2026",
+          "mape": 6.259241367809332,
+          "mae": 1.0422856793746937,
+          "rmse": 1.0578713194919573,
+          "wape": 6.268256431168474,
+          "smape": 6.467162883531426,
+          "mase": 1.6631024038827429,
+          "mean_oos_error": 1.0422856793746937,
+          "oos_errors": [
+            0.8783545582114716,
+            1.2192291643691924,
+            1.029708523248134,
+            1.0406692287038073,
+            1.3056022438480195,
+            0.7801503578675373
+          ],
+          "train_error_count": 588,
+          "train_error_mean": -0.016052123694448184,
+          "train_error_std": 1.011752845144338,
+          "correction": {
+            "window": 6,
+            "bias": -0.34354150121325056
+          }
+        }
+      ],
+      "ljung_box_oos_grouped": {
+        "3": {
+          "statistic": 6.41119974854401,
+          "pvalue": 0.09323112663362847
+        },
+        "6": {
+          "statistic": 14.345069091517345,
+          "pvalue": 0.02601030947909639
+        },
+        "12": {
+          "statistic": 30.515635448003064,
+          "pvalue": 0.002333991313778127
+        }
+      },
+      "prequential_interval_fixed": {
+        "coverage_p10_p90": 0.3888888888888889,
+        "pinball_loss_medio": 0.3417843533655318,
+        "observacoes_avaliadas": 18,
+        "dobras_avaliadas": 3,
+        "escalas_volatilidade": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "n_oos_residuals": 24,
+      "oos_mean_error": 0.2615224997465346,
+      "acceptance": {
+        "ljung_box_primary": true,
+        "mape_floor": false,
+        "coverage_floor": false,
+        "mape_nominal": false,
+        "coverage_nominal": false
+      },
+      "delta_vs_baseline": {
+        "mape_pp": 0.8401497462234016,
+        "rmse": 0.1229124139618164,
+        "mae": 0.13749906679964297,
+        "wape_pp": 0.8352006655224646,
+        "smape_pp": 0.849049401686842,
+        "mase": 0.21929508173896828,
+        "coverage_pp": -0.27777777777777773,
+        "pinball": 0.0671472166286633,
+        "ljung_box_lag3_pvalue": -0.10670700514825184,
+        "ljung_box_lag12_pvalue": -0.022778997551155068
+      }
+    }
+  ]
+}
