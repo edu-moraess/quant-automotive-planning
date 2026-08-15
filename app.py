@@ -1534,6 +1534,7 @@ with tab_market:
                 return {
                     "coeficientes": results["coeficientes_padronizados"],
                     "regressores": results.get("regressores", []),
+                    "drivers_ausentes": results.get("drivers_configurados_mas_ausentes", []),
                     "mape": results["mape_medio"],
                     "dw_medio": results["durbin_watson_medio"],
                     "dw_ultima_dobra": results["durbin_watson_ultima_dobra"],
@@ -1549,6 +1550,13 @@ with tab_market:
             vertical_metric("Papel no aplicativo", "Diagnóstico de drivers")
             vertical_metric("Uso operacional", "Não alimenta forecast nem planejamento")
             vertical_metric("Regressores efetivos", ", ".join(ols_diagnostic["regressores"]))
+            vertical_metric(
+                "Drivers configurados, mas ausentes",
+                ", ".join(ols_diagnostic["drivers_ausentes"]) or "Nenhum",
+            )
+            st.caption(
+                "Não há candidatos avaliados e descartados persistidos; drivers ausentes foram omitidos por indisponibilidade no feature store."
+            )
             vertical_metric("MAPE walk-forward", f"{ols_diagnostic['mape']:.2f}%")
             vertical_metric("Durbin–Watson médio", f"{ols_diagnostic['dw_medio']:.3f}")
             vertical_metric("Durbin–Watson última dobra", f"{ols_diagnostic['dw_ultima_dobra']:.3f}")

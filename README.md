@@ -45,9 +45,23 @@ O modelo escolhido é reajustado sobre o histórico. O módulo `probabilistic_fo
 
 O OLS v2.2 é um **artefato diagnóstico**, não o motor de previsão utilizado no planejamento. Ele serve para avaliar persistência residual, contribuição relativa de drivers e adequação econométrica. O forecast operacional segue o contrato modular da Regressão com defasagens em `src/analysis.py` e `src/forecast_engine.py`.
 
-O `src/forecast_model.py` monta uma matriz mensal point-in-time a partir do snapshot `TOTALSA` e do feature store agregado. Além de `y_lag1`, juros Fed em lag 2 e drivers macro em lag 1, CPI e produção industrial são tratados como variações percentuais mensais: `CPI_diff_lag1`, `CPI_diff_lag3` e `PRODIND_diff_lag2`. Se o builder já tiver materializado as colunas, elas são consumidas diretamente; se houver apenas os níveis `cpi` e `producao_industrial`, a diferença é derivada no momento da montagem. Na ausência da fonte, o regressor é omitido e o artefato registra o contrato efetivamente utilizado.
+O `src/forecast_model.py` monta uma matriz mensal point-in-time a partir do snapshot `TOTALSA` e do feature store agregado. No artefato atual, os únicos regressores usados são `y_lag1`, `X_CPI_diff_lag1`, `X_CPI_diff_lag3` e `X_PRODIND_diff_lag2`. Drivers macro opcionais, como FEDFUNDS, GASREG, desemprego, financiamento auto, confiança do consumidor e emprego total, só entram quando as respectivas colunas estão disponíveis; quando ausentes, são registrados separadamente como drivers configurados, mas não presentes na matriz. O JSON não os chama de candidatos avaliados e não selecionados porque o código atual não executa uma seleção stepwise documentada.
 
 A validação é walk-forward em três dobras de seis meses. O estimador padrão é OLS com erros-padrão HAC de Newey–West. Para autocorrelação residual persistente, o mesmo contrato expõe `GLSAR` iterativo AR(1) como contingência e permite comparar ambos sem misturar amostras ou horizontes. A decisão de promover o fallback depende de DW, MAPE, RMSE, cobertura P10–P90 e Pinball Loss simultaneamente, nunca de uma única métrica.
+
+### Auditoria de integração operacional
+
+A auditoria foi feita por imports e chamadas efetivas, não por nomes de módulos ou declarações. O resultado encontrado foi:
+
+```text
+./scripts/train_advanced_models.py:20: from forecast_model import run_ols_forecast
+./scripts/train_advanced_models.py:32:     ols = run_ols_forecast()
+./app.py:1527: from forecast_model import build_regression_matrix, walk_forward_ols
+./app.py:1532:     matrix = build_regression_matrix()
+./app.py:1533:     results = walk_forward_ols(matrix)
+```
+
+Não foram encontrados imports ou chamadas de `forecast_model` em `forecast_engine.py`, `risk_engine.py`, `scenario_engine.py`, `decision_intelligence.py` ou `robust_planning.py`. O encadeamento operacional do app é `analysis_module.run_backtest → analysis_module.make_forecast → analysis_module.build_production_plan`, seguido de `run_risk_engine`, `optimize_under_uncertainty` e `build_decision_intelligence`. Portanto, o OLS v2.2 é um **painel explicativo de drivers, não utilizado no forecast operacional**.
 
 ### Produto, tecnologia e energia
 

@@ -6,7 +6,7 @@ Esta validação documenta a alteração da matriz de regressão mensal do `src/
 
 A série de mercado é `TOTALSA` do FRED, que representa vendas agregadas de veículos leves nos Estados Unidos, não vendas por marca [1]. As séries macroeconômicas são `CPIAUCSL`, Consumer Price Index for All Urban Consumers: All Items in U.S. City Average, índice 1982–1984 = 100 e frequência mensal, e `INDPRO`, Industrial Production: Total Index, índice 2017 = 100 e frequência mensal [2] [3].
 
-> **Papel no aplicativo.** O OLS Newey–West v2.2 é um artefato de diagnóstico de drivers e autocorrelação. Ele não alimenta o forecast principal nem o planejamento operacional. O forecast usado pelo app é a Regressão com defasagens implementada em `src/analysis.py` e registrada no Forecast Engine; o OLS aparece na seção de drivers para interpretação econométrica.
+> **Papel no aplicativo.** O OLS Newey–West v2.2 é um artefato de diagnóstico de drivers e autocorrelação. Ele não alimenta o forecast principal nem o planejamento operacional. O forecast usado pelo app é a Regressão com defasagens implementada em `src/analysis.py` e registrada no Forecast Engine; o OLS aparece na seção de drivers para interpretação econométrica. A auditoria por imports e chamadas efetivas não encontrou uso de `forecast_model.py` em Forecast Engine, Risk Engine, Scenario Engine, Decision Intelligence ou Robust Planning.
 
 ## Materialização do feature store
 
@@ -48,7 +48,7 @@ A meta específica de DW médio igual ou superior a 1,72 ainda não foi atingida
 
 ## Regressores efetivamente utilizados
 
-O artefato `data/model_artifacts/model_performance_v2.json` registra os regressores presentes na matriz, evitando confundir features implementadas com features realmente disponíveis no treinamento. A descrição do JSON é construída a partir desse array e não lista candidatos que foram omitidos. Quando o critério de aceite falha, o artefato também registra `status_operacional: nao_aprovado` e os critérios reprovados.
+O artefato `data/model_artifacts/model_performance_v2.json` registra os regressores presentes na matriz, evitando confundir features implementadas com features realmente disponíveis no treinamento. O campo `descricao` contém somente a lista do array `regressores`, sem drivers candidatos adicionais. O campo `candidatos_avaliados_e_nao_selecionados` permanece vazio, porque o código atual não executa uma seleção stepwise documentada. Os drivers opcionais que não materializaram colunas são registrados separadamente em `drivers_configurados_mas_ausentes_na_matriz`. Quando o critério de aceite falha, o artefato também registra `status_operacional: nao_aprovado` e os critérios reprovados.
 
 | Regres­sor | Papel |
 |---|---|
@@ -56,6 +56,8 @@ O artefato `data/model_artifacts/model_performance_v2.json` registra os regresso
 | `X_CPI_diff_lag1` | Variação percentual do CPI com uma defasagem |
 | `X_CPI_diff_lag3` | Variação percentual do CPI com três defasagens |
 | `X_PRODIND_diff_lag2` | Variação percentual da produção industrial com duas defasagens |
+
+**Candidatos avaliados e não selecionados:** nenhum persistido. **Drivers configurados, mas ausentes da matriz:** FEDFUNDS lag-2, GASREG lag-1, Desemprego lag-1, Financiamento auto lag-1, Confiança do consumidor lag-1 e Emprego total lag-1. A ausência indica indisponibilidade das colunas no feature store nesta execução, não rejeição estatística documentada.
 
 ## Diagnóstico de multicolinearidade
 

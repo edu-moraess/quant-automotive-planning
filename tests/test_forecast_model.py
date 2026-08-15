@@ -62,7 +62,9 @@ def test_performance_artifact_describes_effective_regressors_and_app_role(tmp_pa
     ]
     assert payload["papel_no_app"] == "diagnostico_de_drivers"
     assert payload["nao_alimenta_forecast_principal"] is True
-    assert "Regressores efetivamente estimados nesta execução" in payload["descricao"]
+    assert payload["descricao"] == "Regressores usados: y_lag1, X_CPI_diff_lag1, X_CPI_diff_lag3, X_PRODIND_diff_lag2."
     assert "FEDFUNDS" not in payload["descricao"]
+    assert payload["candidatos_avaliados_e_nao_selecionados"] == []
+    assert payload["drivers_configurados_mas_ausentes_na_matriz"]
     assert payload["status_operacional"] == "nao_aprovado"
     assert set(payload["criterios_aceite_reprovados"]) == {"durbin_watson", "mape"}

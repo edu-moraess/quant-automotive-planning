@@ -6,13 +6,12 @@ e executa validação walk-forward para gerar intervalos p10–90. O estimador
 padrão é OLS com erros HAC; GLSAR fica disponível como contingência para
 resíduos persistentemente autocorrelacionados.
 
-Seleção de variáveis (v2.2):
-    - Defasagens do target: apenas y_lag1
-    - FEDFUNDS com lag 2 meses
-    - GASREG com lag 1
-    - CPI em variação percentual mensal com lags 1 e 3
-    - Produção industrial em variação percentual mensal com lag 2
-    - Os níveis CPI e produção industrial não entram diretamente na matriz
+Especificação de variáveis (v2.2):
+    - A matriz usa apenas y_lag1 como defasagem do target.
+    - Drivers macro opcionais entram somente quando as colunas estão disponíveis.
+    - CPI entra em variação percentual mensal com lags 1 e 3.
+    - Produção industrial entra em variação percentual mensal com lag 2.
+    - Os níveis CPI e produção industrial não entram diretamente na matriz.
 
 Metas de qualidade (v2.2):
     - Durbin-Watson ≥ 1.72
@@ -60,7 +59,7 @@ DIFF_FEATURES: dict[str, str] = {
 # Compat: MACRO_FEATURES aponta para todos os drivers expostos no gráfico.
 MACRO_FEATURES: dict[str, str] = {**MACRO_FEATURES_LAG1, **MACRO_FEATURES_LAG2, **DIFF_FEATURES}
 
-# Apenas lag t-1 do target: t-2 e t-12 não significativos após inclusão dos regressores macro.
+# Apenas lag t-1 do target faz parte do contrato atual da matriz OLS.
 TARGET_LAGS = [1]
 
 # Arquivo de referência com métricas da versão anterior (Ridge com defasagens).
@@ -309,10 +308,19 @@ def walk_forward_ols(matrix: pd.DataFrame, *, estimator: str = "newey_west") -> 
 
     # Coeficientes padronizados da última dobra (para o gráfico de drivers).
     coef_df = _standardized_coefficients(last_result, feature_cols)
+    effective_regressors = [column for column in feature_cols if not column.startswith("mes_")]
+    configured_driver_labels = {
+        **{f"X_{column}_lag1": label for column, label in MACRO_FEATURES_LAG1.items()},
+        **{f"X_{column}_lag2": label for column, label in MACRO_FEATURES_LAG2.items()},
+    }
+    absent_configured_drivers = [
+        label for column, label in configured_driver_labels.items() if column not in effective_regressors
+    ]
 
     return {
         "estimador": estimator,
-        "regressores": [column for column in feature_cols if not column.startswith("mes_")],
+        "regressores": effective_regressors,
+        "drivers_configurados_mas_ausentes": absent_configured_drivers,
         "fold_metrics": fold_metrics,
         "mape_medio": float(np.mean(mapes)),
         "mape_desvio": float(np.std(mapes)),
@@ -424,30 +432,19 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
     }
 
     effective_regressors = metrics.get("regressores", [])
-    regressor_labels = {
-        "y_lag1": "y_lag1",
-        "X_CPI_diff_lag1": "CPI_diff_lag1",
-        "X_CPI_diff_lag3": "CPI_diff_lag3",
-        "X_PRODIND_diff_lag2": "PRODIND_diff_lag2",
-        "X_fed_funds_pct_lag2": "FEDFUNDS lag-2",
-    }
-    effective_description = (
-        ", ".join(regressor_labels.get(regressor, regressor) for regressor in effective_regressors)
-        or "nenhum regressor disponível"
-    )
+    effective_description = ", ".join(effective_regressors) or "nenhum regressor disponível"
+    absent_configured_drivers = metrics.get("drivers_configurados_mas_ausentes", [])
     estimator_name = metrics.get("estimador", "newey_west")
     payload = {
         "modelo": "OLS Newey-West (v2.2)" if estimator_name == "newey_west" else "GLSAR (Cochrane-Orcutt)",
-        "descricao": (
-            "OLS com erros-padrão HAC (Newey-West). Regressores efetivamente estimados nesta execução: "
-            f"{effective_description}. O artefato é diagnóstico de drivers e não alimenta o forecast "
-            "principal nem o planejamento operacional do aplicativo."
-            if estimator_name == "newey_west"
-            else "GLSAR iterativo com estrutura AR(1). Regressores efetivamente estimados nesta execução: "
-            f"{effective_description}. O artefato é diagnóstico de drivers e não alimenta o forecast "
-            "principal nem o planejamento operacional do aplicativo."
-        ),
+        "descricao": f"Regressores usados: {effective_description}.",
         "papel_no_app": "diagnostico_de_drivers",
+        "candidatos_avaliados_e_nao_selecionados": [],
+        "drivers_configurados_mas_ausentes_na_matriz": absent_configured_drivers,
+        "nota_sobre_selecao": (
+            "O código atual não executa seleção stepwise desses drivers; os itens ausentes foram omitidos "
+            "por indisponibilidade das colunas no feature store, não por rejeição estatística documentada."
+        ),
         "nao_alimenta_forecast_principal": True,
         "forecast_principal_app": "Regressão com defasagens (src/analysis.py e src/forecast_engine.py)",
         "status_operacional": "aprovado" if all(aceite.values()) else "nao_aprovado",

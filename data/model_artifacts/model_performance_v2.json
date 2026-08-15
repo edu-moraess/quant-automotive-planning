@@ -1,7 +1,17 @@
 {
   "modelo": "OLS Newey-West (v2.2)",
-  "descricao": "OLS com erros-padrão HAC (Newey-West). Regressores efetivamente estimados nesta execução: y_lag1, CPI_diff_lag1, CPI_diff_lag3, PRODIND_diff_lag2. O artefato é diagnóstico de drivers e não alimenta o forecast principal nem o planejamento operacional do aplicativo.",
+  "descricao": "Regressores usados: y_lag1, X_CPI_diff_lag1, X_CPI_diff_lag3, X_PRODIND_diff_lag2.",
   "papel_no_app": "diagnostico_de_drivers",
+  "candidatos_avaliados_e_nao_selecionados": [],
+  "drivers_configurados_mas_ausentes_na_matriz": [
+    "Financiamento auto",
+    "Desemprego",
+    "Gasolina (GASREG)",
+    "Confiança do consumidor",
+    "Emprego total",
+    "Juros Fed (lag 2)"
+  ],
+  "nota_sobre_selecao": "O código atual não executa seleção stepwise desses drivers; os itens ausentes foram omitidos por indisponibilidade das colunas no feature store, não por rejeição estatística documentada.",
   "nao_alimenta_forecast_principal": true,
   "forecast_principal_app": "Regressão com defasagens (src/analysis.py e src/forecast_engine.py)",
   "status_operacional": "nao_aprovado",
