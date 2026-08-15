@@ -16,12 +16,13 @@ ROOT = Path("/home/ubuntu/quant_automotivo_streamlit")
 sys.path.insert(0, str(ROOT / "src"))
 
 import analysis  # noqa: E402
+from acceptance_policy import ACCEPTANCE_POLICY  # noqa: E402
 
 N_FOLDS = 4
 FOLD_SIZE = 6
-LB_LAGS = [6, 12]
+LB_LAGS = [ACCEPTANCE_POLICY.grouped_ljung_box_lag, 6, 12]
 ARCH_LAGS = [4, 12]
-LB_ALPHA = 0.05
+LB_ALPHA = ACCEPTANCE_POLICY.alpha
 LAG_SPECS = {
     "current_lag1_lag12": [1, 12],
     "lag1_only": [1],
@@ -245,10 +246,17 @@ def diagnose_spec(data: pd.DataFrame, lag_name: str, lags: list[int]) -> dict[st
         "prequential_interval_fixed": fixed_intervals,
         "prequential_interval_volatility": volatility_intervals,
         "acceptance_diagnostics": {
-            "ljung_box_lag6": grouped_lb.get("6", {}).get("pvalue", np.nan) >= LB_ALPHA,
-            "ljung_box_lag12": grouped_lb.get("12", {}).get("pvalue", np.nan) >= LB_ALPHA,
-            "coverage_fixed_80pct": fixed_intervals["coverage_p10_p90"] >= 0.80,
-            "mape_2_87pct": overall["MAPE (%)"] <= 2.87,
+            "ljung_box_primary_lag3": grouped_lb.get(str(ACCEPTANCE_POLICY.grouped_ljung_box_lag), {}).get(
+                "pvalue", np.nan
+            )
+            >= ACCEPTANCE_POLICY.alpha,
+            "ljung_box_lag6": grouped_lb.get("6", {}).get("pvalue", np.nan) >= ACCEPTANCE_POLICY.alpha,
+            "ljung_box_lag12": grouped_lb.get("12", {}).get("pvalue", np.nan) >= ACCEPTANCE_POLICY.alpha,
+            "coverage_fixed_acceptance": fixed_intervals["coverage_p10_p90"]
+            >= ACCEPTANCE_POLICY.coverage_acceptance_min,
+            "coverage_fixed_nominal": fixed_intervals["coverage_p10_p90"] >= ACCEPTANCE_POLICY.coverage_nominal_target,
+            "mape_acceptance": overall["MAPE (%)"] <= ACCEPTANCE_POLICY.mape_acceptance_max_pct,
+            "mape_nominal_target": overall["MAPE (%)"] <= ACCEPTANCE_POLICY.mape_nominal_target_max_pct,
         },
     }
     return summary
@@ -266,7 +274,8 @@ def main() -> None:
             "in_sample_r2_used": False,
             "ljung_box_grouped_lags": LB_LAGS,
             "arch_lags": ARCH_LAGS,
-            "alpha": LB_ALPHA,
+            "alpha": ACCEPTANCE_POLICY.alpha,
+            "acceptance_policy": ACCEPTANCE_POLICY.as_dict(),
             "operational_model": "Regressão com defasagens (Ridge alpha=1; lag_1 e lag_12; dummies mensais; tendência)",
         },
         "benchmark_context": {

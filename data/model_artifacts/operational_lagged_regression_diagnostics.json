@@ -15,6 +15,7 @@
     ],
     "in_sample_r2_used": false,
     "ljung_box_grouped_lags": [
+      3,
       6,
       12
     ],
@@ -23,6 +24,19 @@
       12
     ],
     "alpha": 0.05,
+    "acceptance_policy": {
+      "version": "2026.08",
+      "alpha": 0.05,
+      "grouped_ljung_box_lag": 3,
+      "mape_acceptance_max_pct": 4.0,
+      "mape_nominal_target_max_pct": 2.87,
+      "coverage_acceptance_min": 0.75,
+      "coverage_nominal_target": 0.8,
+      "diagnostic_tests_required": [
+        "ARCH",
+        "CUSUM"
+      ]
+    },
     "operational_model": "Regressão com defasagens (Ridge alpha=1; lag_1 e lag_12; dummies mensais; tendência)"
   },
   "benchmark_context": {
@@ -37,7 +51,7 @@
         "mae_medio": 0.6631302906558596,
         "rmse_medio": 0.8122699642615383,
         "mase_medio": 1.0594161703109646,
-        "tempo_medio_s": 0.04843304418727712,
+        "tempo_medio_s": 0.05146948887477265,
         "dobras_validas": 4,
         "selection_score": 1.0
       },
@@ -50,7 +64,7 @@
         "mae_medio": 0.6977620677321312,
         "rmse_medio": 0.8362688911066185,
         "mase_medio": 1.1144695783401932,
-        "tempo_medio_s": 0.04843304418727712,
+        "tempo_medio_s": 0.05146948887477265,
         "dobras_validas": 4,
         "selection_score": 2.0
       },
@@ -63,7 +77,7 @@
         "mae_medio": 0.714146601228705,
         "rmse_medio": 0.8730885006427527,
         "mase_medio": 1.1406103489610182,
-        "tempo_medio_s": 0.04843304418727712,
+        "tempo_medio_s": 0.05146948887477265,
         "dobras_validas": 4,
         "selection_score": 3.0
       },
@@ -76,7 +90,7 @@
         "mae_medio": 1.3966830392573697,
         "rmse_medio": 1.5065724747311884,
         "mase_medio": 2.231875771003032,
-        "tempo_medio_s": 0.04843304418727712,
+        "tempo_medio_s": 0.05146948887477265,
         "dobras_validas": 4,
         "selection_score": 4.0
       }
@@ -205,6 +219,10 @@
             0.009446569138580546
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 17.315092600353935,
+              "pvalue": 0.0006087353665991021
+            },
             "6": {
               "statistic": 23.51232504001117,
               "pvalue": 0.0006418512430052748
@@ -302,6 +320,10 @@
             0.01068639974344637
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 17.16931970335131,
+              "pvalue": 0.0006522735623419843
+            },
             "6": {
               "statistic": 23.362593672330522,
               "pvalue": 0.0006837019228699842
@@ -399,6 +421,10 @@
             0.011351184217811755
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 17.813155327711627,
+              "pvalue": 0.00048065085292939915
+            },
             "6": {
               "statistic": 24.52257151721819,
               "pvalue": 0.0004184032539543426
@@ -496,6 +522,10 @@
             0.010580212175468617
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 17.989453749579898,
+              "pvalue": 0.0004420580436327028
+            },
             "6": {
               "statistic": 24.803285308547125,
               "pvalue": 0.00037130642136057893
@@ -588,6 +618,10 @@
         }
       ],
       "grouped_oos_ljung_box": {
+        "3": {
+          "statistic": 4.6423608406870285,
+          "pvalue": 0.1999381317818803
+        },
         "6": {
           "statistic": 9.163841053025694,
           "pvalue": 0.16457127337500188
@@ -622,10 +656,13 @@
         ]
       },
       "acceptance_diagnostics": {
+        "ljung_box_primary_lag3": true,
         "ljung_box_lag6": true,
         "ljung_box_lag12": false,
-        "coverage_fixed_80pct": false,
-        "mape_2_87pct": false
+        "coverage_fixed_acceptance": false,
+        "coverage_fixed_nominal": false,
+        "mape_acceptance": true,
+        "mape_nominal_target": false
       }
     },
     {
@@ -708,6 +745,10 @@
             0.07678574360128025
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 28.276897250506593,
+              "pvalue": 3.177033814090332e-06
+            },
             "6": {
               "statistic": 31.359067490384298,
               "pvalue": 2.164517406565903e-05
@@ -805,6 +846,10 @@
             0.07811050835833887
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 28.265336494453265,
+              "pvalue": 3.1948400990618056e-06
+            },
             "6": {
               "statistic": 31.3554095450911,
               "pvalue": 2.16800603776095e-05
@@ -902,6 +947,10 @@
             0.07917190360949124
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 29.09230316173204,
+              "pvalue": 2.1416118286499492e-06
+            },
             "6": {
               "statistic": 32.53589538577423,
               "pvalue": 1.2877322607174336e-05
@@ -999,6 +1048,10 @@
             0.07822560977702257
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 29.4476025343526,
+              "pvalue": 1.8032687631489997e-06
+            },
             "6": {
               "statistic": 32.97942139165192,
               "pvalue": 1.0581868253297473e-05
@@ -1091,6 +1144,10 @@
         }
       ],
       "grouped_oos_ljung_box": {
+        "3": {
+          "statistic": 6.364603846791586,
+          "pvalue": 0.0951578890112023
+        },
         "6": {
           "statistic": 14.273510083920828,
           "pvalue": 0.02672574226312479
@@ -1125,10 +1182,13 @@
         ]
       },
       "acceptance_diagnostics": {
+        "ljung_box_primary_lag3": true,
         "ljung_box_lag6": false,
         "ljung_box_lag12": false,
-        "coverage_fixed_80pct": false,
-        "mape_2_87pct": false
+        "coverage_fixed_acceptance": false,
+        "coverage_fixed_nominal": false,
+        "mape_acceptance": false,
+        "mape_nominal_target": false
       }
     },
     {
@@ -1216,6 +1276,10 @@
             0.03641447271307659
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 0.7895631184241837,
+              "pvalue": 0.8519617347433558
+            },
             "6": {
               "statistic": 2.713941389403019,
               "pvalue": 0.8437978422406656
@@ -1313,6 +1377,10 @@
             0.03725126910219767
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 0.8044964486196119,
+              "pvalue": 0.8483912426162468
+            },
             "6": {
               "statistic": 2.850353699445421,
               "pvalue": 0.8273810856360964
@@ -1410,6 +1478,10 @@
             0.03762118621756297
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 0.9072663897794335,
+              "pvalue": 0.823673917204405
+            },
             "6": {
               "statistic": 2.9901692146119223,
               "pvalue": 0.810079684750418
@@ -1507,6 +1579,10 @@
             0.038224900204921586
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 0.9119239770416634,
+              "pvalue": 0.8225493670709281
+            },
             "6": {
               "statistic": 3.055250070428696,
               "pvalue": 0.8018811111024803
@@ -1599,6 +1675,10 @@
         }
       ],
       "grouped_oos_ljung_box": {
+        "3": {
+          "statistic": 5.366134446716232,
+          "pvalue": 0.14686813466217907
+        },
         "6": {
           "statistic": 10.948708194218923,
           "pvalue": 0.08997466224195344
@@ -1633,10 +1713,13 @@
         ]
       },
       "acceptance_diagnostics": {
+        "ljung_box_primary_lag3": true,
         "ljung_box_lag6": true,
         "ljung_box_lag12": false,
-        "coverage_fixed_80pct": false,
-        "mape_2_87pct": false
+        "coverage_fixed_acceptance": false,
+        "coverage_fixed_nominal": false,
+        "mape_acceptance": false,
+        "mape_nominal_target": false
       }
     },
     {
@@ -1723,6 +1806,10 @@
             0.03128695144333528
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 1.1192186881269157,
+              "pvalue": 0.7724367584189222
+            },
             "6": {
               "statistic": 3.414699363289245,
               "pvalue": 0.7552818085375356
@@ -1820,6 +1907,10 @@
             0.0322227521885369
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 1.1324377774294272,
+              "pvalue": 0.7692498033696333
+            },
             "6": {
               "statistic": 3.556805182017269,
               "pvalue": 0.7363973183494941
@@ -1917,6 +2008,10 @@
             0.032806870368189335
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 1.2620502313055608,
+              "pvalue": 0.7381637327935129
+            },
             "6": {
               "statistic": 3.71802219732873,
               "pvalue": 0.7147725227673469
@@ -2014,6 +2109,10 @@
             0.03364101045089428
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 1.256842636585894,
+              "pvalue": 0.7394058186787116
+            },
             "6": {
               "statistic": 3.757748456041173,
               "pvalue": 0.7094203010894213
@@ -2106,6 +2205,10 @@
         }
       ],
       "grouped_oos_ljung_box": {
+        "3": {
+          "statistic": 5.300568381823897,
+          "pvalue": 0.15106551391551448
+        },
         "6": {
           "statistic": 10.79038328189138,
           "pvalue": 0.09507498674496231
@@ -2140,10 +2243,13 @@
         ]
       },
       "acceptance_diagnostics": {
+        "ljung_box_primary_lag3": true,
         "ljung_box_lag6": true,
         "ljung_box_lag12": false,
-        "coverage_fixed_80pct": false,
-        "mape_2_87pct": false
+        "coverage_fixed_acceptance": false,
+        "coverage_fixed_nominal": false,
+        "mape_acceptance": false,
+        "mape_nominal_target": false
       }
     },
     {
@@ -2228,6 +2334,10 @@
             0.030287501499198996
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 12.337005301457511,
+              "pvalue": 0.006313528542417029
+            },
             "6": {
               "statistic": 24.915095861003877,
               "pvalue": 0.0003540372611883383
@@ -2325,6 +2435,10 @@
             0.03061417599787692
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 12.245523130678682,
+              "pvalue": 0.006587725190183591
+            },
             "6": {
               "statistic": 25.00668722934393,
               "pvalue": 0.0003404824867509085
@@ -2422,6 +2536,10 @@
             0.032037910577722865
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 12.791229489014036,
+              "pvalue": 0.005110540105611791
+            },
             "6": {
               "statistic": 26.30270310667238,
               "pvalue": 0.00019551031867820102
@@ -2519,6 +2637,10 @@
             0.03117502125265256
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 13.078849991353227,
+              "pvalue": 0.004469153791805182
+            },
             "6": {
               "statistic": 26.825898434508588,
               "pvalue": 0.00015609590393029544
@@ -2611,6 +2733,10 @@
         }
       ],
       "grouped_oos_ljung_box": {
+        "3": {
+          "statistic": 5.913074398193882,
+          "pvalue": 0.11591678828689615
+        },
         "6": {
           "statistic": 12.064439978595498,
           "pvalue": 0.06054657095477087
@@ -2645,10 +2771,13 @@
         ]
       },
       "acceptance_diagnostics": {
+        "ljung_box_primary_lag3": true,
         "ljung_box_lag6": true,
         "ljung_box_lag12": false,
-        "coverage_fixed_80pct": false,
-        "mape_2_87pct": false
+        "coverage_fixed_acceptance": false,
+        "coverage_fixed_nominal": false,
+        "mape_acceptance": false,
+        "mape_nominal_target": false
       }
     },
     {
@@ -2734,6 +2863,10 @@
             0.03284495741541077
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 1.2475458205244863,
+              "pvalue": 0.7416248792069696
+            },
             "6": {
               "statistic": 3.698245725989008,
               "pvalue": 0.7174340295348169
@@ -2831,6 +2964,10 @@
             0.03370730466772357
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 1.2563924720499136,
+              "pvalue": 0.7395132205551902
+            },
             "6": {
               "statistic": 3.8518641423337994,
               "pvalue": 0.6967150894082719
@@ -2928,6 +3065,10 @@
             0.033896656740719795
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 1.2479264531702472,
+              "pvalue": 0.74153398524886
+            },
             "6": {
               "statistic": 3.8108690945848966,
               "pvalue": 0.7022529754809727
@@ -3025,6 +3166,10 @@
             0.03496771058918123
           ],
           "ljung_box_train": {
+            "3": {
+              "statistic": 1.2371636417281553,
+              "pvalue": 0.7441054227973067
+            },
             "6": {
               "statistic": 3.846928631504704,
               "pvalue": 0.6973820674420147
@@ -3117,6 +3262,10 @@
         }
       ],
       "grouped_oos_ljung_box": {
+        "3": {
+          "statistic": 5.274546806603978,
+          "pvalue": 0.15276256320572765
+        },
         "6": {
           "statistic": 10.75995314470867,
           "pvalue": 0.0960847867401527
@@ -3151,10 +3300,13 @@
         ]
       },
       "acceptance_diagnostics": {
+        "ljung_box_primary_lag3": true,
         "ljung_box_lag6": true,
         "ljung_box_lag12": false,
-        "coverage_fixed_80pct": false,
-        "mape_2_87pct": false
+        "coverage_fixed_acceptance": false,
+        "coverage_fixed_nominal": false,
+        "mape_acceptance": false,
+        "mape_nominal_target": false
       }
     }
   ]

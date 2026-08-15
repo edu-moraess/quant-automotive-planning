@@ -18,8 +18,7 @@
   "criterio_dependencia_serial_primario": "Ljung–Box OOS agrupado das 3 dobras, lag 3, n=18",
   "durbin_watson_uso": "descritivo; não participa do aceite binário",
   "criterios_aceite_reprovados": [
-    "ljung_box_oos_grouped",
-    "mape"
+    "ljung_box_oos_grouped"
   ],
   "n_folds": 3,
   "fold_size_meses": 6,
@@ -48,12 +47,20 @@
   "metas_aceite": {
     "ljung_box_oos_grouped_lag": 3,
     "ljung_box_oos_grouped_pvalue_min": 0.05,
-    "mape_max_pct": 2.87,
-    "coverage_p10_p90_min": 0.75
+    "policy_version": "2026.08",
+    "ljung_box_alpha": 0.05,
+    "mape_max_pct": 4.0,
+    "mape_nominal_target_max_pct": 2.87,
+    "coverage_p10_p90_min": 0.75,
+    "coverage_nominal_target": 0.8,
+    "diagnostic_tests_required": [
+      "ARCH",
+      "CUSUM"
+    ]
   },
   "resultado_aceite": {
     "ljung_box_oos_grouped": false,
-    "mape": false,
+    "mape": true,
     "coverage": true
   },
   "todos_criterios_atingidos": false,

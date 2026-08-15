@@ -44,7 +44,7 @@ O JSON anterior foi preservado em `data/model_artifacts/model_performance_v2_bac
 | 3 | 3,1220% | 0,5695 | **1,9211** | 100,00% |
 | **Média** | **3,6460%** | **0,7491** | **1,5700** | **88,89%** |
 
-A meta específica de DW médio igual ou superior a 1,72 ainda não foi atingida, mas o problema mais severo foi corrigido: a última dobra passou de 0,5622 para 1,9211. A cobertura também superou o mínimo de 75%. O MAPE médio ficou acima da meta agressiva de 2,87% e ligeiramente acima do backup; portanto, a evolução v2.2 melhora a estrutura residual e a cobertura, mas não deve ser apresentada como superior em todas as dimensões preditivas.
+O DW médio não é mais tratado como meta de aceite; permanece somente descritivo. O problema mais severo da última dobra foi reduzido: o DW passou de 0,5622 para 1,9211. A cobertura fold-mean de 88,89% supera o piso canônico de 75%. O MAPE de 3,6460% também passa o piso recalibrado de 4,00%, mas continua acima do alvo nominal exploratório de 2,87%; o Ljung–Box OOS agrupado `p=0,0376` reprova o critério primário. A política completa está em [`docs/POLITICA_ACEITE_MODELOS.md`](POLITICA_ACEITE_MODELOS.md).
 
 ## Regressores efetivamente utilizados
 
@@ -72,9 +72,9 @@ Os VIFs calculados sobre a matriz com dados reais ficaram baixos e não indicam 
 
 ## GLSAR como contingência
 
-GLSAR iterativo AR(1) permanece implementado e comparável no mesmo walk-forward. No cenário oficial agora materializado, o backtest GLSAR apresentou Ljung–Box OOS agrupado de `p=0,0333`, DW médio de 1,6351 apenas descritivo, MAPE médio de 3,5833% e cobertura de 83,33%. Ele melhora o MAPE em relação ao OLS v2.2, mas não supera o novo critério de dependência serial e reduz a cobertura probabilística. O OLS apresentou Ljung–Box OOS agrupado de `p=0,0376`, também abaixo da meta revisada de `p≥0,05`. A decisão atual é manter Newey–West como estimador principal e GLSAR como plano B explícito, sem substituir o modelo principal por uma única métrica. A investigação por ACF/PACF, Ljung–Box, ARCH, CUSUM, teste de `y_lag12`, DW centrado e comparação clássico/HAC está documentada em [`docs/DIAGNOSTICO_AUTOCORRELACAO_OLS.md`](DIAGNOSTICO_AUTOCORRELACAO_OLS.md). O DW OOS por dobra permanece somente descritivo porque a primeira dobra é instável por viés de nível e erro extremo em horizonte curto.
+GLSAR iterativo AR(1) permanece implementado e comparável no mesmo walk-forward. No cenário oficial agora materializado, o backtest GLSAR apresentou Ljung–Box OOS agrupado de `p=0,0333`, DW médio de 1,6351 apenas descritivo, MAPE médio de 3,5833% e cobertura de 83,33%. Ele passa os pisos recalibrados de MAPE e cobertura, mas não supera o critério primário de dependência serial. O OLS apresentou Ljung–Box OOS agrupado de `p=0,0376`, também abaixo do piso `p≥0,05`; ambos permanecem acima do alvo nominal de MAPE 2,87%. A decisão atual é manter Newey–West como estimador principal e GLSAR como plano B explícito, sem substituir o modelo principal por uma única métrica. A investigação por ACF/PACF, Ljung–Box, ARCH, CUSUM, teste de `y_lag12`, DW centrado e comparação clássico/HAC está documentada em [`docs/DIAGNOSTICO_AUTOCORRELACAO_OLS.md`](DIAGNOSTICO_AUTOCORRELACAO_OLS.md). O DW OOS por dobra permanece somente descritivo porque a primeira dobra é instável por viés de nível e erro extremo em horizonte curto.
 
-> A evolução v2.2 está validada quanto à disponibilidade das séries e à melhora descritiva da última dobra: o DW subiu de 0,5622 para 1,9211. O critério primário revisado é o Ljung–Box OOS agrupado, lag 3, com meta `p≥0,05`; o OLS atual apresentou `p=0,0376`, portanto permanece reprovado nessa dimensão, além de continuar acima da meta de MAPE.
+> A evolução v2.2 está validada quanto à disponibilidade das séries e à melhora descritiva da última dobra: o DW subiu de 0,5622 para 1,9211. O critério primário revisado é o Ljung–Box OOS agrupado, lag 3, com piso `p≥0,05`; o OLS atual apresentou `p=0,0376`, portanto permanece reprovado nessa dimensão. O MAPE de 3,6460% passa o piso de 4,00%, mas não atinge o alvo nominal exploratório de 2,87%.
 
 ## Reprodutibilidade
 

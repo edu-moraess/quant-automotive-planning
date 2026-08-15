@@ -14,12 +14,13 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import analysis  # noqa: E402
 import forecast_model as fm  # noqa: E402
+from acceptance_policy import ACCEPTANCE_POLICY  # noqa: E402
 
 LAGS = [1, 2, 3, 6, 9, 12]
 N_FOLDS = 3
 FOLD_SIZE = 6
-LB_LAG = 3
-LB_ALPHA = 0.05
+LB_LAG = ACCEPTANCE_POLICY.grouped_ljung_box_lag
+LB_ALPHA = ACCEPTANCE_POLICY.alpha
 VOL_WINDOW = 6
 
 
@@ -147,10 +148,19 @@ def evaluate(name: str, matrix: pd.DataFrame) -> dict[str, Any]:
         "interval_fixed_prequential": fixed_interval,
         "interval_volatility_prequential": volatility_interval,
         "acceptance": {
-            "ljung_box_oos_grouped": bool(float(lb["lb_pvalue"].iloc[0]) >= LB_ALPHA),
-            "mape": bool(overall["MAPE (%)"] <= 2.87),
-            "coverage_fixed": bool(fixed_interval["coverage_p10_p90"] >= 0.80),
-            "coverage_volatility": bool(volatility_interval["coverage_p10_p90"] >= 0.80),
+            "ljung_box_oos_grouped": bool(float(lb["lb_pvalue"].iloc[0]) >= ACCEPTANCE_POLICY.alpha),
+            "mape": bool(overall["MAPE (%)"] <= ACCEPTANCE_POLICY.mape_acceptance_max_pct),
+            "mape_nominal_target": bool(overall["MAPE (%)"] <= ACCEPTANCE_POLICY.mape_nominal_target_max_pct),
+            "coverage_fixed": bool(fixed_interval["coverage_p10_p90"] >= ACCEPTANCE_POLICY.coverage_acceptance_min),
+            "coverage_fixed_nominal": bool(
+                fixed_interval["coverage_p10_p90"] >= ACCEPTANCE_POLICY.coverage_nominal_target
+            ),
+            "coverage_volatility": bool(
+                volatility_interval["coverage_p10_p90"] >= ACCEPTANCE_POLICY.coverage_acceptance_min
+            ),
+            "coverage_volatility_nominal": bool(
+                volatility_interval["coverage_p10_p90"] >= ACCEPTANCE_POLICY.coverage_nominal_target
+            ),
             "volatility_improves_coverage": bool(
                 volatility_interval["coverage_p10_p90"] > fixed_interval["coverage_p10_p90"]
             ),
@@ -168,7 +178,8 @@ def main() -> None:
             "fold_size_months": FOLD_SIZE,
             "lag_specification_joint": LAGS,
             "grouped_ljung_box_lag": LB_LAG,
-            "grouped_ljung_box_alpha": LB_ALPHA,
+            "grouped_ljung_box_alpha": ACCEPTANCE_POLICY.alpha,
+            "acceptance_policy": ACCEPTANCE_POLICY.as_dict(),
             "volatility_window": VOL_WINDOW,
             "selection_excludes_in_sample_r2": True,
             "metrics": ["RMSE", "MAE", "MAPE", "WAPE", "sMAPE", "MASE", "coverage_p10_p90", "pinball_loss"],

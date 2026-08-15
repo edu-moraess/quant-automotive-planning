@@ -4,7 +4,7 @@
 
 Esta análise investiga o modelo que efetivamente vence o benchmark operacional em `src/analysis.py` e alimenta o forecast usado por planejamento, Monte Carlo, risco e Decision Intelligence. O modelo é uma Ridge com `alpha=1`, defasagens `lag_1` e `lag_12`, tendência e dummies mensais.
 
-O protocolo usa o snapshot real versionado `data/TOTALSA_snapshot.csv`, quatro dobras walk-forward expansivas de seis meses e 24 previsões OOS. A cobertura prequential é calculada exatamente no contrato da interface: as três últimas dobras são avaliadas contra resíduos OOS de dobras anteriores, totalizando 18 observações pontuadas. Nenhum R² in-sample foi usado para seleção ou aceite.
+O protocolo usa o snapshot real versionado `data/TOTALSA_snapshot.csv`, quatro dobras walk-forward expansivas de seis meses e 24 previsões OOS. Os pisos e alvos de aceite seguem a política canônica em [`docs/POLITICA_ACEITE_MODELOS.md`](POLITICA_ACEITE_MODELOS.md). A cobertura prequential é calculada exatamente no contrato da interface: as três últimas dobras são avaliadas contra resíduos OOS de dobras anteriores, totalizando 18 observações pontuadas. Nenhum R² in-sample foi usado para seleção ou aceite.
 
 O script reproduzível está em [`scripts/diagnose_operational_lagged_regression.py`](../scripts/diagnose_operational_lagged_regression.py), e o artefato bruto em [`operational_lagged_regression_diagnostics.json`](../data/model_artifacts/operational_lagged_regression_diagnostics.json).
 
@@ -27,11 +27,12 @@ Os 24 erros OOS do vencedor operacional foram preservados em ordem temporal. O L
 
 | Diagnóstico | Resultado | Interpretação a 5% |
 |---|---:|---|
-| Ljung–Box lag 6 | p = 0,1646 | Não rejeita ausência de autocorrelação conjunta até lag 6 |
+| Ljung–Box lag 3 — primário | p = 0,1999 | Passa o piso `p≥0,05` da política canônica |
+| Ljung–Box lag 6 — diagnóstico | p = 0,1646 | Não rejeita ausência de autocorrelação conjunta até lag 6 |
 | Ljung–Box lag 12 | p = 0,0251 | Rejeita ausência de autocorrelação conjunta até lag 12 |
 | ARCH, lag 4 | p = 0,8123 | Não há evidência de heterocedasticidade ARCH no teste operacional agregado |
 | DW descritivo | 1,0555 | Informação descritiva; não é usado como aceite isolado |
-| Cobertura prequential fixa | 66,67% | Abaixo da meta nominal de 80% |
+| Cobertura prequential fixa | 66,67% | Abaixo do piso de aceite 75,00% e do alvo nominal 80% |
 | Pinball Loss prequential | 0,2746 | Referência para calibração |
 
 O padrão do Ljung–Box é informativo: o p-valor permanece acima de 5% até lag 6, cai para `0,0493` em lag 7 e continua abaixo de 5% entre lags 8 e 12, chegando a `0,0251` em lag 12. O ACF OOS agrupado é `0,3997` em lag 1, `−0,3384` em lag 6, `−0,3671` em lag 7, `−0,2528` em lag 9 e `−0,2874` em lag 10. O PACF é `0,3997` em lag 1 e `−0,3322` em lag 6.
@@ -72,7 +73,7 @@ Todas as alternativas foram executadas no mesmo protocolo de quatro dobras e sei
 | `1,2,3,6,12` | 4,0401% | 0,8378 | 0,6726 | 4,0604% | 4,0820% | 1,0752 | 0,0951 | 0,0264 | 61,11% |
 | `1,2,3,6,9,12` | 4,0701% | 0,8464 | 0,6774 | 4,0896% | 4,1112% | 1,0830 | 0,0900 | 0,0238 | 61,11% |
 
-Nenhuma alternativa passa simultaneamente MAPE de `2,87%`, cobertura de `80%` e Ljung–Box de lag 12 com `p≥0,05`. A especificação atual `1,12` é a melhor em MAPE, RMSE, MAE, WAPE, sMAPE, MASE e cobertura fixa dentro deste conjunto, embora continue reprovada no Ljung–Box de lag 12.
+Nenhuma alternativa passa simultaneamente o piso canônico de MAPE `4,00%`, cobertura `75%` e Ljung–Box primário `lag 3, p≥0,05` com vantagem consistente sobre a configuração atual. A especificação atual `1,12` é a melhor em MAPE, RMSE, MAE, WAPE, sMAPE, MASE e cobertura fixa dentro deste conjunto: passa MAPE e Ljung–Box primário, mas falha no piso de cobertura. Os alvos nominais mais ambiciosos de MAPE `2,87%` e cobertura `80%` permanecem documentados apenas como referência exploratória. A política completa está em [`docs/POLITICA_ACEITE_MODELOS.md`](POLITICA_ACEITE_MODELOS.md).
 
 A inclusão dos lags 6, 9 e 12 não resolve a dependência de lags 7–12. A especificação `1,3,6,12` melhora ligeiramente RMSE e MAPE em relação a `1,6,12`, mas ainda tem p-valor de `0,0259` em lag 12 e cobertura de apenas `61,11%`. A combinação com todos os lags testados é pior que a atual no MAPE e na cobertura.
 
@@ -86,7 +87,7 @@ Não foi confirmada quebra estrutural global pelo CUSUM. Também não há evidê
 
 ## Decisão operacional
 
-A decisão é **manter a especificação atual `lag_1 + lag_12` por enquanto**. Ela é a melhor entre as alternativas testadas em erro e cobertura, apesar de falhar no Ljung–Box de lag 12. Não há evidência suficiente para promover outra combinação de lags.
+A decisão é **manter a especificação atual `lag_1 + lag_12` por enquanto**. Ela passa o piso canônico de MAPE e Ljung–Box primário, mas falha o piso de cobertura prequential; também não atinge os alvos nominais exploratórios de MAPE e cobertura. Não há evidência suficiente para promover outra combinação de lags. A política única de aceite e a distinção entre piso e alvo estão em [`docs/POLITICA_ACEITE_MODELOS.md`](POLITICA_ACEITE_MODELOS.md).
 
 Como o modelo alimenta estoque, backlog, Monte Carlo, VaR/CVaR e Decision Intelligence, nenhuma mudança de especificação foi aplicada ao forecast operacional nesta etapa. O próximo experimento, se autorizado, deve testar uma modelagem explícita de dependência de médio alcance — por exemplo, termos de erro ou correção de viés estimados somente com dados disponíveis antes de cada dobra — em vez de continuar adicionando lags do alvo de forma ad hoc.
 

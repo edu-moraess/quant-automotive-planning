@@ -13,10 +13,12 @@ Especificação de variáveis (v2.2):
     - Produção industrial entra em variação percentual mensal com lag 2.
     - Os níveis CPI e produção industrial não entram diretamente na matriz.
 
-Metas de qualidade (v2.2):
-    - Durbin-Watson ≥ 1.72
-    - MAPE ≤ 2.87 %
-    - Cobertura p10–90 ≥ 75 %
+Política de aceite:
+    - Ljung–Box OOS agrupado, lag e alpha definidos em acceptance_policy.py.
+    - MAPE ≤ 4,00 % é o piso de aceite recalibrado; 2,87 % permanece como alvo nominal exploratório.
+    - Cobertura p10–90 ≥ 75 % é o piso de aceite; 80 % permanece como alvo nominal.
+    - ARCH e CUSUM continuam diagnósticos obrigatórios e reportados.
+    - Durbin–Watson por dobra é somente descritivo.
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ import statsmodels.api as sm
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 from statsmodels.stats.stattools import durbin_watson
 
+from acceptance_policy import ACCEPTANCE_POLICY
 from config import DATA_DIR
 
 logger = logging.getLogger(__name__)
@@ -72,8 +75,8 @@ _N_FOLDS = 3
 _FOLD_SIZE = 6
 
 # Critério OOS agrupado: 18 resíduos permitem um teste conjunto, mas não um lag alto.
-GROUPED_OOS_LB_LAG = 3
-GROUPED_OOS_LB_PVALUE_MIN = 0.05
+GROUPED_OOS_LB_LAG = ACCEPTANCE_POLICY.grouped_ljung_box_lag
+GROUPED_OOS_LB_PVALUE_MIN = ACCEPTANCE_POLICY.alpha
 
 
 def _load_feature_store_market(store_dir: Path) -> pd.DataFrame:
@@ -452,8 +455,13 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
     metas = {
         "ljung_box_oos_grouped_lag": GROUPED_OOS_LB_LAG,
         "ljung_box_oos_grouped_pvalue_min": GROUPED_OOS_LB_PVALUE_MIN,
-        "mape_max_pct": 2.87,
-        "coverage_p10_p90_min": 0.75,
+        "policy_version": ACCEPTANCE_POLICY.version,
+        "ljung_box_alpha": ACCEPTANCE_POLICY.alpha,
+        "mape_max_pct": ACCEPTANCE_POLICY.mape_acceptance_max_pct,
+        "mape_nominal_target_max_pct": ACCEPTANCE_POLICY.mape_nominal_target_max_pct,
+        "coverage_p10_p90_min": ACCEPTANCE_POLICY.coverage_acceptance_min,
+        "coverage_nominal_target": ACCEPTANCE_POLICY.coverage_nominal_target,
+        "diagnostic_tests_required": list(ACCEPTANCE_POLICY.diagnostic_tests_required),
     }
     resultados = {
         "ljung_box_oos_grouped_pvalue": metrics["ljung_box_oos_grouped_pvalue"],

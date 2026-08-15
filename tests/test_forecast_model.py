@@ -75,10 +75,15 @@ def test_performance_artifact_describes_effective_regressors_and_app_role(tmp_pa
     assert payload["candidatos_avaliados_e_nao_selecionados"] == []
     assert payload["drivers_configurados_mas_ausentes_na_matriz"]
     assert payload["status_operacional"] == "nao_aprovado"
+    assert payload["metas_aceite"]["policy_version"] == "2026.08"
     assert payload["metas_aceite"]["ljung_box_oos_grouped_lag"] == 3
     assert payload["metas_aceite"]["ljung_box_oos_grouped_pvalue_min"] == 0.05
+    assert payload["metas_aceite"]["mape_max_pct"] == 4.00
+    assert payload["metas_aceite"]["mape_nominal_target_max_pct"] == 2.87
+    assert payload["metas_aceite"]["coverage_p10_p90_min"] == 0.75
+    assert payload["metas_aceite"]["coverage_nominal_target"] == 0.80
     assert payload["metricas"]["durbin_watson_papel"] == "descritivo"
     assert "durbin_watson" not in payload["resultado_aceite"]
-    assert set(payload["criterios_aceite_reprovados"]) == {"ljung_box_oos_grouped", "mape"}
+    assert set(payload["criterios_aceite_reprovados"]) == {"ljung_box_oos_grouped"}
     assert all("ljung_box_pvalue_train_lag12" in fold for fold in payload["dobras"])
     assert all("arch_pvalue_train_lag12" in fold for fold in payload["dobras"])

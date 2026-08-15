@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import t as student_t
 
+from acceptance_policy import ACCEPTANCE_POLICY
+
 
 @dataclass(frozen=True)
 class ProbabilisticForecastConfig:
@@ -147,8 +149,8 @@ def calibrate_error_methods(
                     "method": method,
                     "coverage_p10_p90": coverage,
                     "pinball_loss": pinball,
-                    "coverage_gap": abs(coverage - 0.80),
-                    "score": pinball + abs(coverage - 0.80),
+                    "coverage_gap": abs(coverage - ACCEPTANCE_POLICY.coverage_nominal_target),
+                    "score": pinball + abs(coverage - ACCEPTANCE_POLICY.coverage_nominal_target),
                     "folds_scored": len(fold_scores),
                 }
             )
