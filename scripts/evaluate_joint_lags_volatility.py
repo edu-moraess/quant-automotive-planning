@@ -24,10 +24,11 @@ LB_ALPHA = ACCEPTANCE_POLICY.alpha
 VOL_WINDOW = 6
 
 
-def joint_matrix() -> pd.DataFrame:
-    base = fm.build_regression_matrix()
-    matrix = base.drop(columns=[column for column in base.columns if column.startswith("y_lag")]).copy()
-    for lag in LAGS:
+def matrix_with_target_lags(target_lags: list[int]) -> pd.DataFrame:
+    """Reconstrói a matriz com uma família explícita de lags do target."""
+    base = fm.build_regression_matrix(target_lags=[])
+    matrix = base.copy()
+    for lag in target_lags:
         matrix[f"y_lag{lag}"] = matrix["y"].shift(lag)
     return matrix.dropna()
 
@@ -120,7 +121,7 @@ def horizon_metrics(matrix: pd.DataFrame, result: dict[str, Any]) -> list[dict[s
     return rows
 
 
-def evaluate(name: str, matrix: pd.DataFrame) -> dict[str, Any]:
+def evaluate(name: str, matrix: pd.DataFrame, lag_specification: list[int]) -> dict[str, Any]:
     result = fm.walk_forward_ols(matrix, estimator="newey_west")
     actuals_by_fold, predictions_by_fold = split_folds(result)
     errors = np.asarray(result["oos_residuals"], dtype=float)
@@ -132,7 +133,7 @@ def evaluate(name: str, matrix: pd.DataFrame) -> dict[str, Any]:
     volatility_interval = prequential_intervals(actuals_by_fold, predictions_by_fold, volatility_conditioned=True)
     return {
         "name": name,
-        "lag_specification": [1] if name == "current" else LAGS,
+        "lag_specification": lag_specification,
         "n_matrix_rows": len(matrix),
         "regressors": result["regressores"],
         "overall_metrics": overall,
@@ -169,8 +170,8 @@ def evaluate(name: str, matrix: pd.DataFrame) -> dict[str, Any]:
 
 
 def main() -> None:
-    current = fm.build_regression_matrix()
-    joint = joint_matrix()
+    current = matrix_with_target_lags([1])
+    joint = matrix_with_target_lags(LAGS)
     payload = {
         "protocol": {
             "source": "feature store local com TOTALSA, CPIAUCSL e INDPRO reais",
@@ -184,8 +185,8 @@ def main() -> None:
             "selection_excludes_in_sample_r2": True,
             "metrics": ["RMSE", "MAE", "MAPE", "WAPE", "sMAPE", "MASE", "coverage_p10_p90", "pinball_loss"],
         },
-        "current": evaluate("current", current),
-        "joint_lags": evaluate("joint_lags", joint),
+        "current": evaluate("current", current, [1]),
+        "joint_lags": evaluate("joint_lags", joint, LAGS),
     }
     output = ROOT / "data" / "model_artifacts" / "joint_lags_volatility_backtest.json"
     output.write_text(

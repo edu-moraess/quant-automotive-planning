@@ -6,8 +6,8 @@ e executa validação walk-forward para gerar intervalos p10–90. O estimador
 padrão é OLS com erros HAC; GLSAR fica disponível como contingência para
 resíduos persistentemente autocorrelacionados.
 
-Especificação de variáveis (v2.2):
-    - A matriz usa apenas y_lag1 como defasagem do target.
+Especificação de variáveis (v2.3):
+    - A matriz usa conjuntamente y_lag1, y_lag2, y_lag3, y_lag6, y_lag9 e y_lag12.
     - Drivers macro opcionais entram somente quando as colunas estão disponíveis.
     - CPI entra em variação percentual mensal com lags 1 e 3.
     - Produção industrial entra em variação percentual mensal com lag 2.
@@ -63,8 +63,9 @@ DIFF_FEATURES: dict[str, str] = {
 # Compat: MACRO_FEATURES aponta para todos os drivers expostos no gráfico.
 MACRO_FEATURES: dict[str, str] = {**MACRO_FEATURES_LAG1, **MACRO_FEATURES_LAG2, **DIFF_FEATURES}
 
-# Apenas lag t-1 do target faz parte do contrato atual da matriz OLS.
-TARGET_LAGS = [1]
+# Família de lags distribuídos validada no backtest OOS do painel diagnóstico.
+# O conjunto captura dinâmica curta, intermediária e sazonal sem alterar o forecast operacional.
+TARGET_LAGS = [1, 2, 3, 6, 9, 12]
 
 # Arquivo de referência com métricas da versão anterior (Ridge com defasagens).
 _PREV_PERF_FILE = DATA_DIR / "model_artifacts" / "advanced_model_summary.json"
@@ -116,7 +117,11 @@ def _load_fred_snapshot() -> pd.DataFrame:
     return result.set_index("mes").sort_index()
 
 
-def build_regression_matrix(store_dir: Path | None = None) -> pd.DataFrame:
+def build_regression_matrix(
+    store_dir: Path | None = None,
+    *,
+    target_lags: list[int] | None = None,
+) -> pd.DataFrame:
     """Constrói a matriz mensal com target e regressores defasados.
 
     Usa o snapshot FRED local (607 obs) como base histórica do target e enriquece
@@ -125,6 +130,7 @@ def build_regression_matrix(store_dir: Path | None = None) -> pd.DataFrame:
     para cada regressor, já com os lags aplicados e linhas com NaN removidas.
     """
     store_dir = store_dir or DATA_DIR / "feature_store"
+    target_lags = TARGET_LAGS if target_lags is None else target_lags
 
     # Base histórica: snapshot FRED local com 607 observações mensais.
     base = _load_fred_snapshot()
@@ -135,7 +141,7 @@ def build_regression_matrix(store_dir: Path | None = None) -> pd.DataFrame:
     matrix["y"] = base["vendas_saar_milhoes"]
 
     # Defasagens da própria série-alvo.
-    for lag in TARGET_LAGS:
+    for lag in target_lags:
         matrix[f"y_lag{lag}"] = matrix["y"].shift(lag)
 
     # Enriquece com séries macro do feature store quando disponíveis.
@@ -391,11 +397,7 @@ def _standardized_coefficients(result: Any, feature_cols: list[str]) -> pd.DataF
     # FEDFUNDS usa coluna X_fed_funds_pct_lag2 (lag=2 explícito no nome).
     label_map.update({f"X_{k}_lag2": v for k, v in MACRO_FEATURES_LAG2.items()})
     label_map.update({f"X_{k}": v for k, v in DIFF_FEATURES.items()})
-    label_map.update(
-        {
-            "y_lag1": "Vendas t-1",
-        }
-    )
+    label_map.update({f"y_lag{lag}": f"Vendas t-{lag}" for lag in TARGET_LAGS})
     # Dummies sazonais omitidas do gráfico de drivers.
     names = []
     coefs = []
@@ -481,7 +483,7 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
     absent_configured_drivers = metrics.get("drivers_configurados_mas_ausentes", [])
     estimator_name = metrics.get("estimador", "newey_west")
     payload = {
-        "modelo": "OLS Newey-West (v2.2)" if estimator_name == "newey_west" else "GLSAR (Cochrane-Orcutt)",
+        "modelo": "OLS Newey-West (v2.3)" if estimator_name == "newey_west" else "GLSAR (Cochrane-Orcutt)",
         "descricao": f"Regressores usados: {effective_description}.",
         "papel_no_app": "diagnostico_de_drivers",
         "candidatos_avaliados_e_nao_selecionados": [],

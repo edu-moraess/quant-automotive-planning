@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import analysis as analysis_module  # noqa: E402
 import energy_intelligence as energy_module  # noqa: E402
 import vehicle_intelligence as vehicle_module  # noqa: E402
+from acceptance_policy import ACCEPTANCE_POLICY  # noqa: E402
 from config import (  # noqa: E402
     DATA_DIR,
     ENERGY_SNAPSHOT,
@@ -1593,10 +1594,21 @@ with tab_market:
             st.caption(
                 "Ljung–Box e ARCH usam os resíduos do treino; DW e ACF/PACF OOS usam somente os seis meses de cada dobra."
             )
-            st.warning(
-                "Artefato não aprovado para uso operacional: o Ljung–Box OOS agrupado, o MAPE ou a cobertura não atingiram as metas. "
-                "O DW por dobra é apenas descritivo; esta seção é interpretativa e não substitui o forecast principal."
+            diagnostic_floor_pass = (
+                ols_diagnostic["ljung_box_oos_pvalue"] >= ACCEPTANCE_POLICY.alpha
+                and ols_diagnostic["mape"] <= ACCEPTANCE_POLICY.mape_acceptance_max_pct
+                and ols_diagnostic["coverage"] >= ACCEPTANCE_POLICY.coverage_acceptance_min
             )
+            if diagnostic_floor_pass:
+                st.success(
+                    "Artefato diagnóstico aprovado nos pisos de Ljung–Box, MAPE e cobertura. "
+                    "O OLS continua sendo explicativo e não substitui o forecast principal."
+                )
+            else:
+                st.warning(
+                    "Artefato diagnóstico abaixo de um ou mais pisos de aceite. "
+                    "O DW por dobra é apenas descritivo; esta seção não substitui o forecast principal."
+                )
             if not coef_df.empty:
                 fig_coef = go.Figure()
                 colors = [ORANGE if v >= 0 else RED for v in coef_df["coef_norm"]]

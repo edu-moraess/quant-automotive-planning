@@ -64,17 +64,25 @@ def test_performance_artifact_describes_effective_regressors_and_app_role(tmp_pa
 
     assert payload["regressores"] == [
         "y_lag1",
+        "y_lag2",
+        "y_lag3",
+        "y_lag6",
+        "y_lag9",
+        "y_lag12",
         "X_CPI_diff_lag1",
         "X_CPI_diff_lag3",
         "X_PRODIND_diff_lag2",
     ]
     assert payload["papel_no_app"] == "diagnostico_de_drivers"
     assert payload["nao_alimenta_forecast_principal"] is True
-    assert payload["descricao"] == "Regressores usados: y_lag1, X_CPI_diff_lag1, X_CPI_diff_lag3, X_PRODIND_diff_lag2."
+    assert payload["descricao"] == (
+        "Regressores usados: y_lag1, y_lag2, y_lag3, y_lag6, y_lag9, y_lag12, "
+        "X_CPI_diff_lag1, X_CPI_diff_lag3, X_PRODIND_diff_lag2."
+    )
     assert "FEDFUNDS" not in payload["descricao"]
     assert payload["candidatos_avaliados_e_nao_selecionados"] == []
     assert payload["drivers_configurados_mas_ausentes_na_matriz"]
-    assert payload["status_operacional"] == "nao_aprovado"
+    assert payload["status_operacional"] == "aprovado"
     assert payload["metas_aceite"]["policy_version"] == "2026.08"
     assert payload["metas_aceite"]["ljung_box_oos_grouped_lag"] == 3
     assert payload["metas_aceite"]["ljung_box_oos_grouped_pvalue_min"] == 0.05
@@ -84,6 +92,6 @@ def test_performance_artifact_describes_effective_regressors_and_app_role(tmp_pa
     assert payload["metas_aceite"]["coverage_nominal_target"] == 0.80
     assert payload["metricas"]["durbin_watson_papel"] == "descritivo"
     assert "durbin_watson" not in payload["resultado_aceite"]
-    assert set(payload["criterios_aceite_reprovados"]) == {"ljung_box_oos_grouped"}
+    assert payload["criterios_aceite_reprovados"] == []
     assert all("ljung_box_pvalue_train_lag12" in fold for fold in payload["dobras"])
     assert all("arch_pvalue_train_lag12" in fold for fold in payload["dobras"])

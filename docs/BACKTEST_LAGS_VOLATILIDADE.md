@@ -2,69 +2,70 @@
 
 ## Escopo e protocolo
 
-Este experimento compara a especificação OLS atual, com `y_lag1`, à especificação desafiante com os lags do alvo `y_lag1`, `y_lag2`, `y_lag3`, `y_lag6`, `y_lag9` e `y_lag12` avaliados conjuntamente. Ambas usam a mesma matriz macroeconômica real, com `CPIAUCSL` e `INDPRO` materializados no feature store, o mesmo estimador Newey–West, as mesmas três dobras expansivas de seis meses e os mesmos 18 meses OOS.
+Este experimento compara explicitamente dois braços OLS construídos com a mesma matriz macroeconômica real e o mesmo protocolo walk-forward: o baseline `y_lag1` e a especificação conjunta `y_lag1`, `y_lag2`, `y_lag3`, `y_lag6`, `y_lag9` e `y_lag12`. O script reconstrói cada matriz com `target_lags` explícito para evitar que a promoção da família conjunta contamine o braço baseline.
 
-A seleção foi feita exclusivamente com métricas fora da amostra: RMSE, MAE, MAPE, WAPE, sMAPE, MASE, cobertura P10–P90, Pinball Loss e Ljung–Box agrupado dos resíduos OOS. Nenhum R² in-sample foi usado para escolher a especificação. O script reproduzível é [`scripts/evaluate_joint_lags_volatility.py`](../scripts/evaluate_joint_lags_volatility.py), e o artefato bruto é [`joint_lags_volatility_backtest.json`](../data/model_artifacts/joint_lags_volatility_backtest.json).
+Ambos usam Newey–West, três dobras expansivas de seis meses e 18 observações OOS. A seleção usa RMSE, MAE, MAPE, WAPE, sMAPE, MASE, cobertura P10–P90, Pinball Loss e Ljung–Box agrupado. Nenhum R² in-sample é usado. O script reproduzível é [`scripts/evaluate_joint_lags_volatility.py`](../scripts/evaluate_joint_lags_volatility.py), e o artefato bruto é [`joint_lags_volatility_backtest.json`](../data/model_artifacts/joint_lags_volatility_backtest.json).
 
-O teste de dependência serial usa os 18 resíduos OOS concatenados em ordem temporal, com Ljung–Box em `lag=3` e piso de aceite `p≥0,05`. O DW por dobra permanece descritivo e não participa da decisão binária, porque a primeira dobra contém apenas seis pontos, viés médio de `+0,5147` e um erro extremo que responde por `43,12%` da soma absoluta dos erros. Os pisos e alvos nominais seguem [`docs/POLITICA_ACEITE_MODELOS.md`](POLITICA_ACEITE_MODELOS.md).
+O teste de dependência serial usa os 18 resíduos OOS concatenados em ordem temporal, com Ljung–Box em `lag=3` e piso `p≥0,05`. O DW por dobra é descritivo, pois a janela de seis pontos é instável diante de viés de nível e ponto extremo. Os pisos e alvos nominais seguem [`docs/POLITICA_ACEITE_MODELOS.md`](POLITICA_ACEITE_MODELOS.md).
 
 ## Comparação agregada
 
 | Especificação | MAE | RMSE | MAPE | WAPE | sMAPE | MASE | Ljung–Box p | Cobertura fixa |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Atual: `y_lag1` | 0,6144 | 0,7739 | 3,6460% | 3,6630% | 3,6790% | 0,9796 | 0,0376 | 66,67% |
-| Conjunta: `y_lag1,2,3,6,9,12` | **0,5219** | **0,6988** | **3,0936%** | **3,1112%** | **3,1226%** | **0,8268** | **0,1070** | **75,00%** |
+| Baseline `y_lag1` | 0,6170 | 0,7776 | 3,6613% | 3,6781% | 3,6948% | 0,9822 | 0,0390 | 66,67% |
+| Conjunta `y_lag1,2,3,6,9,12` | **0,5219** | **0,6988** | **3,0936%** | **3,1112%** | **3,1226%** | **0,8268** | **0,1070** | **75,00%** |
 
-A especificação conjunta melhora todas as métricas pontuais agregadas e eleva o p-valor do Ljung–Box de `0,0376` para `0,1070`, passando o piso de dependência serial. A melhora relativa do MAPE foi de `0,5524` ponto percentual; o MAPE de `3,0936%` e a cobertura fixa de `75,00%` passam os pisos recalibrados de `4,00%` e `75%`, mas permanecem acima/abaixo dos alvos nominais exploratórios de `2,87%` e `80%`.
+A especificação conjunta melhora todas as métricas de erro agregadas, eleva o p-valor do Ljung–Box acima de 0,05 e alcança o piso de cobertura. A melhora do MAPE é de 0,5677 ponto percentual. O MAPE de 3,0936% e a cobertura de 75,00% ainda não alcançam os alvos nominais exploratórios de 2,87% e 80%.
 
 ## Métricas por horizonte OOS
 
-| Horizonte | MAE atual | MAE conjunto | RMSE atual | RMSE conjunto | MAPE atual | MAPE conjunto | sMAPE atual | sMAPE conjunto | MASE atual | MASE conjunto |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 0,5159 | **0,4371** | 0,5159 | **0,4371** | 3,1387% | **2,7011%** | 3,1174% | **2,6702%** | 0,8214 | **0,6917** |
-| 2 | 0,9263 | **0,8401** | 0,9263 | **0,8401** | 5,6499% | **5,1071%** | 5,5949% | **5,0892%** | 1,4742 | **1,3289** |
-| 3 | **0,3027** | 0,3122 | **0,3027** | 0,3122 | **1,8056%** | 1,8464% | **1,8221%** | 1,8583% | **0,4819** | 0,4941 |
-| 4 | 0,6246 | **0,5010** | 0,6246 | **0,5010** | 3,8010% | **3,0577%** | 3,7790% | **3,0350%** | 0,9946 | **0,7929** |
-| 5 | 0,4499 | **0,2957** | 0,4499 | **0,2957** | 2,6788% | **1,7492%** | 2,7230% | **1,7764%** | 0,7165 | **0,4679** |
-| 6 | **0,8672** | 0,7451 | **0,8672** | 0,7451 | 4,8022% | **4,1003%** | 5,0374% | **4,3064%** | 1,3820 | **1,1802** |
+| Horizonte | MAE baseline | MAE conjunto | RMSE baseline | RMSE conjunto | MAPE baseline | MAPE conjunto |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 0,4345 | 0,4371 | 0,4345 | 0,4371 | 2,6856% | 2,7002% |
+| 2 | 0,8310 | 0,8379 | 0,8310 | 0,8379 | 5,0523% | 5,0934% |
+| 3 | 0,4307 | 0,3141 | 0,4307 | 0,3141 | 2,5586% | 1,8577% |
+| 4 | 0,5279 | 0,5011 | 0,5279 | 0,5011 | 3,2198% | 3,0584% |
+| 5 | 0,2891 | 0,2973 | 0,2891 | 0,2973 | 1,7094% | 1,7585% |
+| 6 | 0,6903 | 0,7462 | 0,6903 | 0,7462 | 3,7763% | 4,1070% |
 
-O desafiante foi melhor em quatro dos seis horizontes para todas as métricas de erro comparáveis. A especificação atual foi ligeiramente melhor no horizonte 3. A melhora não deve ser interpretada como prova definitiva de generalização: o painel OOS tem apenas 18 pontos, portanto a combinação é um desafiante forte, mas ainda precisa de uma janela temporal maior antes de receber status operacional.
+A especificação conjunta melhora os horizontes 3 e 4 com maior margem, enquanto o baseline permanece ligeiramente melhor nos horizontes 1, 2, 5 e 6. A decisão foi tomada pelo conjunto de métricas e não por uma única janela. A amostra OOS é curta; por isso, a promoção é restrita ao painel diagnóstico.
 
 ## Cobertura P10–P90 e heterocedasticidade
 
-A abordagem fixa reproduz a lógica prequential existente: o intervalo da dobra seguinte é estimado somente com resíduos OOS de dobras anteriores, usando quantis fixos `P10`, `P50` e `P90`. A variante condicionada à volatilidade usa a mesma informação disponível até o corte, mas multiplica a distância dos quantis em relação à mediana pela razão entre o desvio-padrão de uma janela recente de seis resíduos e o desvio-padrão histórico disponível, limitada ao intervalo `[0,5; 2,0]`.
+A abordagem fixa reproduz a lógica prequential: a dobra avaliada usa somente resíduos OOS de dobras anteriores para estimar os quantis. A variante condicionada à volatilidade redimensiona a distância dos quantis em relação à mediana pela razão entre o desvio-padrão recente e o histórico, limitada a `[0,5; 2,0]`.
 
-| Especificação | Intervalo | Cobertura | Pinball Loss | Escalas usadas | Resultado |
-|---|---|---:|---:|---|---|
-| Atual | Fixo, prequential | 66,67% | 0,18255 | 1,00; 1,00 | Abaixo do piso 75% e do alvo 80% |
-| Atual | Condicionado à volatilidade | 58,33% | 0,18252 | 1,00; 0,814 | Piora cobertura |
-| Conjunta | Fixo, prequential | **75,00%** | **0,16692** | 1,00; 1,00 | **Passa o piso; abaixo do alvo 80%** |
-| Conjunta | Condicionado à volatilidade | 58,33% | 0,17501 | 1,00; 0,669 | Piora cobertura |
+| Especificação | Intervalo | Cobertura | Pinball Loss | Resultado |
+|---|---|---:|---:|---|
+| Baseline | Fixo, prequential | 66,67% | 0,1849 | Abaixo do piso |
+| Baseline | Condicionado à volatilidade | 58,33% | 0,1836 | Piora cobertura |
+| Conjunta | Fixo, prequential | **75,00%** | **0,1669** | **Passa o piso; abaixo do alvo** |
+| Conjunta | Condicionado à volatilidade | 58,33% | 0,1750 | Piora cobertura |
 
-A calibração condicional não melhora a cobertura em nenhuma das duas especificações. No desafiante conjunto, ela reduz a cobertura de `75,00%` para `58,33%` e aumenta o Pinball Loss de `0,16692` para `0,17501`. No modelo atual, reduz a cobertura de `66,67%` para `58,33%`; o ganho marginal de Pinball Loss é insuficiente para compensar a deterioração da cobertura.
-
-A decisão é manter a abordagem fixa como padrão. A variante condicionada à volatilidade permanece implementada e disponível para investigação, mas não deve ser promovida sem uma janela OOS maior e sem um método que modele a variância condicional de maneira mais estável que a razão de desvios-padrão em somente duas dobras avaliadas.
+A calibração condicional não melhora a cobertura em nenhum dos braços. A abordagem fixa permanece o padrão do painel. A variante de volatilidade continua disponível para investigação, mas não é promovida com apenas duas dobras efetivamente avaliadas para intervalos.
 
 ## Decisão técnica
 
-A combinação conjunta `y_lag1, y_lag2, y_lag3, y_lag6, y_lag9, y_lag12` é o melhor desafiante observado: melhora MAE, RMSE, MAPE, WAPE, sMAPE, MASE, Ljung–Box agrupado e cobertura fixa em relação à especificação atual. Ela **passa o piso canônico** de dependência serial, MAPE e cobertura, mas não atinge os alvos nominais exploratórios de MAPE 2,87% e cobertura 80%.
+A família conjunta `1,2,3,6,9,12` foi promovida como **padrão do painel diagnóstico OLS** porque passa os três pisos canônicos: MAPE, cobertura e Ljung–Box agrupado. O artefato oficial `model_performance_v2.json` foi regenerado após a alteração de `TARGET_LAGS` e apresenta `status_operacional: "aprovado"`, `criterios_aceite_reprovados: []` e `todos_criterios_atingidos: true`.
 
-Por governança, a combinação será mantida como **especificação desafiante validada do painel diagnóstico**, não como forecast operacional principal. O OLS continua sendo um painel explicativo de drivers, e não o motor de forecast usado pelo planejamento. A especificação oficial atual não é substituída silenciosamente: a evidência é positiva para a combinação conjunta, mas a amostra OOS de 18 pontos ainda é curta para declarar aceite operacional completo.
-
-A abordagem de intervalo fixa permanece o padrão prequential. A calibração condicionada à volatilidade foi rejeitada nesta rodada porque não melhora a cobertura observada de `66,67%` e `75,00%`, piorando-a para `58,33%` nos dois cenários. A decisão usa a política única em [`docs/POLITICA_ACEITE_MODELOS.md`](POLITICA_ACEITE_MODELOS.md).
+Essa promoção é restrita ao painel diagnóstico. O OLS continua sendo explicativo e não alimenta o forecast operacional, Risk Engine, Robust Planning ou Decision Intelligence. O modelo principal permanece a Regressão com defasagens implementada em `src/analysis.py`. Os alvos nominais exploratórios de MAPE 2,87% e cobertura 80% continuam como referências de melhoria, não como critérios binários adicionais.
 
 ## Reprodutibilidade
-
-A execução é reproduzida por:
 
 ```bash
 cd /home/ubuntu/quant_automotivo_streamlit
 PYTHONPATH=src python3 scripts/evaluate_joint_lags_volatility.py
 ```
 
-O artefato contém o protocolo, a especificação de lags, métricas agregadas, métricas por horizonte, estatística e p-valor do Ljung–Box agrupado, cobertura prequential fixa, cobertura condicionada à volatilidade e flags de aceite. A implementação genérica está em `src/analysis.py`, nas funções `prequential_interval_quality` e `prequential_interval_quality_volatility`.
+A validação do artefato oficial é executada por:
+
+```bash
+PYTHONPATH=src python3 scripts/train_advanced_models.py
+```
 
 ## Referências
 
-[1]: https://www.statsmodels.org/stable/generated/statsmodels.stats.diagnostic.acorr_ljungbox.html "Statsmodels — Ljung–Box test"
-[2]: https://www.statsmodels.org/stable/generated/statsmodels.stats.diagnostic.het_arch.html "Statsmodels — Engle ARCH test"
+[1]: https://github.com/edu-moraess/quant-automotive-planning/blob/main/data/model_artifacts/joint_lags_volatility_backtest.json "Artefato do backtest de lags conjuntos"
+
+[2]: https://github.com/edu-moraess/quant-automotive-planning/blob/main/data/model_artifacts/model_performance_v2.json "Artefato oficial de desempenho OLS v2.3"
+
+[3]: https://github.com/edu-moraess/quant-automotive-planning/blob/main/docs/POLITICA_ACEITE_MODELOS.md "Política única de aceite"
