@@ -1539,6 +1539,7 @@ with tab_market:
                     "dw_medio": results["durbin_watson_medio"],
                     "dw_ultima_dobra": results["durbin_watson_ultima_dobra"],
                     "coverage": results["coverage_p10_p90"],
+                    "fold_diagnostics": results["fold_metrics"],
                 }
 
             _snapshot_mtime = MARKET_SNAPSHOT.stat().st_mtime if MARKET_SNAPSHOT.exists() else 0.0
@@ -1561,6 +1562,28 @@ with tab_market:
             vertical_metric("Durbin–Watson médio", f"{ols_diagnostic['dw_medio']:.3f}")
             vertical_metric("Durbin–Watson última dobra", f"{ols_diagnostic['dw_ultima_dobra']:.3f}")
             vertical_metric("Cobertura P10–P90", f"{ols_diagnostic['coverage']:.2%}")
+            st.markdown("#### Resíduos: treino versus OOS")
+            vertical_metric(
+                "Ljung–Box treino, lag 12",
+                "; ".join(
+                    f"D{fold['fold']}: p={fold['ljung_box_pvalue_train_lag12']:.2g}"
+                    for fold in ols_diagnostic["fold_diagnostics"]
+                ),
+            )
+            vertical_metric(
+                "ARCH treino, lag 12",
+                "; ".join(
+                    f"D{fold['fold']}: p={fold['arch_pvalue_train_lag12']:.2g}"
+                    for fold in ols_diagnostic["fold_diagnostics"]
+                ),
+            )
+            vertical_metric(
+                "DW OOS centrado",
+                "; ".join(f"D{fold['fold']}: {fold['dw_centered']:.3f}" for fold in ols_diagnostic["fold_diagnostics"]),
+            )
+            st.caption(
+                "Ljung–Box e ARCH usam os resíduos do treino; DW e ACF/PACF OOS usam somente os seis meses de cada dobra."
+            )
             st.warning(
                 "Artefato não aprovado para uso operacional: os critérios de DW médio e MAPE não foram atingidos. "
                 "A seção abaixo é interpretativa e não substitui o forecast principal."

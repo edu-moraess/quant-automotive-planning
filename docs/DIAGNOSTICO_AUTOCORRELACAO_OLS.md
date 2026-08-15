@@ -2,9 +2,9 @@
 
 ## Conclusão executiva
 
-A causa raiz mais consistente do `DW=0,9969` na primeira dobra **não é uma autocorrelação positiva de primeira ordem não capturada**. A evidência aponta para uma combinação de **viés de nível no horizonte OOS curto** e um erro extremo no último mês da primeira dobra, que torna o Durbin–Watson bruto instável com apenas seis observações.
+A causa raiz do `DW=0,9969` na primeira dobra precisa ser separada em duas camadas. Para o número OOS da dobra 1, a evidência aponta para **viés de nível no horizonte curto** e um erro extremo no último mês, que tornam o Durbin–Watson bruto instável com apenas seis observações. Porém, os resíduos de treino apresentam uma segunda evidência, mais robusta: Ljung–Box e ARCH rejeitam fortemente as hipóteses de ausência de dependência serial e de variância condicional constante em todas as dobras e nos dois estimadores. Portanto, o relatório não deve afirmar que não existe autocorrelação persistente no modelo; a formulação correta é que o DW OOS de seis pontos não identifica sozinho um AR(1) positivo como causa específica da primeira dobra.
 
-A hipótese de sazonalidade ausente foi testada com `y_lag12` e não resolveu a primeira dobra. A hipótese de quebra estrutural também não foi confirmada pelo CUSUM aplicado aos resíduos de treino. O Newey–West foi confirmado como um estimador de covariância: ele altera os erros-padrão, mas não altera parâmetros, previsões ou resíduos; portanto, não pode elevar o DW.
+A hipótese de sazonalidade ausente foi testada com `y_lag12` e não resolveu a primeira dobra. A hipótese de quebra estrutural também não foi confirmada pelo CUSUM aplicado aos resíduos de treino, embora CUSUM não substitua os testes de dependência serial e heterocedasticidade. O Newey–West foi confirmado como um estimador de covariância: ele altera os erros-padrão, mas não altera parâmetros, previsões ou resíduos; portanto, não pode elevar o DW.
 
 GLSAR melhora modestamente o DW médio e o MAPE, mas não resolve a primeira dobra e perde cobertura probabilística. A recomendação é **não promovê-lo ao forecast principal** neste momento; mantê-lo como contingência comparável no mesmo walk-forward.
 
@@ -35,6 +35,23 @@ A primeira dobra não apresenta o padrão típico de uma dependência positiva p
 | GLSAR | 3 | −0,4309 | −0,4309 | −0,0079 | −0,2377 | 2,1210 | 2,2863 |
 
 O sinal negativo no lag 2 da primeira dobra é incompatível com a hipótese simples de que faltaria somente um `y_lag2` para capturar autocorrelação positiva. Ele é mais compatível com uma sequência curta de erros alternados e com erro de nível.
+
+## Diagnósticos dos resíduos de treino
+
+Os testes abaixo usam os resíduos do conjunto de treino de cada dobra, com aproximadamente 563 a 575 observações, e não os seis erros OOS. Essa distinção é essencial: os resultados são evidência robusta de que a especificação ainda deixa estrutura nos resíduos, mas não transformam automaticamente o DW OOS da primeira dobra em uma estimativa confiável de AR(1).
+
+| Estimador | Dobra | Ljung–Box lag 12 | ARCH lag 12 |
+|---|---:|---:|---:|
+| OLS Newey–West | 1 | 1,26 × 10⁻⁵ | 3,37 × 10⁻¹³ |
+| OLS Newey–West | 2 | 1,19 × 10⁻⁵ | 2,90 × 10⁻¹³ |
+| OLS Newey–West | 3 | 6,72 × 10⁻⁶ | 3,04 × 10⁻¹³ |
+| GLSAR | 1 | 6,35 × 10⁻⁷ | 1,44 × 10⁻¹³ |
+| GLSAR | 2 | 6,30 × 10⁻⁷ | 1,38 × 10⁻¹³ |
+| GLSAR | 3 | 3,25 × 10⁻⁷ | 1,34 × 10⁻¹³ |
+
+Nos resíduos de treino OLS, os maiores picos de ACF aparecem nos lags 1, 2, 9 e 12, com ACF aproximado de −0,188, −0,122, 0,087 e 0,084 na primeira dobra. O PACF apresenta padrão semelhante, com lags 1, 2, 9 e 12 relevantes em magnitude. Isso confirma que a estrutura residual está distribuída em mais de um lag; a inclusão isolada de `y_lag12` não é um teste suficiente de toda a dinâmica.
+
+O Ljung–Box significativo confirma dependência serial conjunta até o lag 12 em todos os cortes. O ARCH significativo confirma evidência de heterocedasticidade condicional, mas deve ser interpretado como sinal de variância variável ou de mean misspecification remanescente, não como prova isolada de um processo GARCH. Para a camada probabilística, essa evidência é operacionalmente relevante: intervalos baseados em uma distribuição residual fixa podem cobrir de forma diferente em regimes de baixa e alta volatilidade.
 
 ## Influência do viés de nível e do último erro
 
@@ -92,9 +109,9 @@ GLSAR melhora o MAPE e o DW médio, mas mantém a primeira dobra muito abaixo de
 
 ## Decisão técnica
 
-A causa raiz confirmada é **instabilidade do DW bruto na primeira dobra por erro de nível e ponto extremo em um horizonte OOS muito curto**, com ACF/PACF de lag 1 próximos de zero. Não foi confirmada uma sazonalidade ausente como explicação suficiente nem uma quebra estrutural estatisticamente demonstrada. O OLS Newey–West permanece como painel diagnóstico; GLSAR permanece como contingência e benchmark de resíduos.
+A conclusão revisada é que existem **dois diagnósticos simultâneos**. O baixo DW da primeira dobra é dominado por viés de nível e ponto extremo em horizonte OOS curto; entretanto, os testes de Ljung–Box e ARCH confirmam que a especificação ainda deixa dependência serial e variância condicional não constante nos resíduos de treino. Não foi confirmada uma sazonalidade ausente como explicação suficiente nem uma quebra estrutural estatisticamente demonstrada. O OLS Newey–West permanece como painel diagnóstico; GLSAR permanece como contingência e benchmark de resíduos.
 
-O próximo experimento recomendado é avaliar uma especificação com componente de erro de nível ou dummies de regime somente se houver uma fonte real de mercado que justifique o regime, mantendo a avaliação por dobras. Não se deve adicionar `y_lag12` ou promover GLSAR apenas para elevar o DW médio.
+O próximo experimento recomendado é avaliar, em backtest controlado, uma família de lags distribuídos entre 1, 2, 3, 6, 9 e 12 meses e uma calibração probabilística condicional à volatilidade, sempre com as mesmas dobras temporais. Não se deve adicionar `y_lag12` isoladamente ou promover GLSAR apenas para elevar o DW médio.
 
 ## Referências
 

@@ -29,6 +29,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 from statsmodels.stats.stattools import durbin_watson
 
 from config import DATA_DIR
@@ -288,11 +289,26 @@ def walk_forward_ols(matrix: pd.DataFrame, *, estimator: str = "newey_west") -> 
         mae = float(np.mean(np.abs(errors)))
         rmse = float(np.sqrt(np.mean(errors**2)))
         dw = float(durbin_watson(errors))
+        dw_centered = float(durbin_watson(errors - np.mean(errors)))
+        ljung_box_pvalue = float(acorr_ljungbox(residuals_train, lags=[12], return_df=True)["lb_pvalue"].iloc[0])
+        arch_pvalue = float(het_arch(residuals_train, nlags=12)[1])
         pinball = _pinball_loss(y_test, preds, residuals_train)
         cov = _coverage(y_test, preds, residuals_train)
 
         fold_metrics.append(
-            {"fold": fold + 1, "mape": mape, "mae": mae, "rmse": rmse, "dw": dw, "pinball": pinball, "coverage": cov}
+            {
+                "fold": fold + 1,
+                "mape": mape,
+                "mae": mae,
+                "rmse": rmse,
+                "dw": dw,
+                "dw_centered": dw_centered,
+                "mean_oos_error": float(np.mean(errors)),
+                "ljung_box_pvalue_train_lag12": ljung_box_pvalue,
+                "arch_pvalue_train_lag12": arch_pvalue,
+                "pinball": pinball,
+                "coverage": cov,
+            }
         )
         all_actuals.append(y_test)
         all_preds.append(preds)

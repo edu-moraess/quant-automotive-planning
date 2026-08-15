@@ -46,6 +46,11 @@ def test_walk_forward_supports_newey_west_and_glsar_contracts():
         assert len(result["fold_metrics"]) == 3
         assert result["mape_medio"] >= 0
         assert 0 <= result["coverage_p10_p90"] <= 1
+        for fold in result["fold_metrics"]:
+            assert "dw_centered" in fold
+            assert "mean_oos_error" in fold
+            assert "ljung_box_pvalue_train_lag12" in fold
+            assert "arch_pvalue_train_lag12" in fold
 
 
 def test_performance_artifact_describes_effective_regressors_and_app_role(tmp_path):
@@ -68,3 +73,5 @@ def test_performance_artifact_describes_effective_regressors_and_app_role(tmp_pa
     assert payload["drivers_configurados_mas_ausentes_na_matriz"]
     assert payload["status_operacional"] == "nao_aprovado"
     assert set(payload["criterios_aceite_reprovados"]) == {"durbin_watson", "mape"}
+    assert all("ljung_box_pvalue_train_lag12" in fold for fold in payload["dobras"])
+    assert all("arch_pvalue_train_lag12" in fold for fold in payload["dobras"])
