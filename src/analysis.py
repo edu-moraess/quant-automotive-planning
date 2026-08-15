@@ -382,16 +382,25 @@ def _interval_quality(actual: np.ndarray, predicted: np.ndarray, residuals: np.n
     return {"coverage_p10_p90": float(coverage), "pinball_loss_medio": float(np.mean(losses))}
 
 
-def prequential_interval_quality(
-    actuals_by_fold: list[np.ndarray], predictions_by_fold: list[np.ndarray]
-) -> dict[str, float | int]:
-    """Avalia intervalos por dobra usando somente resíduos de dobras anteriores."""
+def _prequential_interval_quality(
+    actuals_by_fold: list[np.ndarray],
+    predictions_by_fold: list[np.ndarray],
+    *,
+    volatility_conditioned: bool,
+    volatility_window: int = 6,
+    scale_floor: float = 0.5,
+    scale_ceiling: float = 2.0,
+) -> dict[str, Any]:
+    """Avalia intervalos prequentialmente, opcionalmente ajustando a escala à volatilidade recente."""
     if len(actuals_by_fold) != len(predictions_by_fold):
         raise ValueError("Atuals e previsões devem conter o mesmo número de dobras.")
+    if volatility_window < 2 or scale_floor <= 0 or scale_ceiling < scale_floor:
+        raise ValueError("Parâmetros de volatilidade inválidos.")
 
     prior_residuals: list[np.ndarray] = []
     coverages: list[np.ndarray] = []
     losses: list[np.ndarray] = []
+    scales_used: list[float] = []
     scored_folds = 0
     for actual, predicted in zip(actuals_by_fold, predictions_by_fold, strict=True):
         observed = np.asarray(actual, dtype=float)
@@ -402,10 +411,24 @@ def prequential_interval_quality(
             raise ValueError("A avaliação prequential exige valores finitos.")
         if prior_residuals:
             residuals = np.concatenate(prior_residuals)
-            lower, median, upper = np.quantile(residuals, [0.10, 0.50, 0.90])
-            coverages.append((observed >= estimate + lower) & (observed <= estimate + upper))
+            lower_quantile, median, upper_quantile = np.quantile(residuals, [0.10, 0.50, 0.90])
+            scale = 1.0
+            if volatility_conditioned and len(residuals) > 1:
+                recent = residuals[-min(volatility_window, len(residuals)) :]
+                recent_std = float(np.std(recent, ddof=1)) if len(recent) > 1 else 0.0
+                global_std = float(np.std(residuals, ddof=1))
+                if global_std > 1e-12:
+                    scale = float(np.clip(recent_std / global_std, scale_floor, scale_ceiling))
+                lower_quantile = median + (lower_quantile - median) * scale
+                upper_quantile = median + (upper_quantile - median) * scale
+            scales_used.append(scale)
+            coverages.append((observed >= estimate + lower_quantile) & (observed <= estimate + upper_quantile))
             fold_losses = []
-            for quantile, adjustment in ((0.10, lower), (0.50, median), (0.90, upper)):
+            for quantile, adjustment in (
+                (0.10, lower_quantile),
+                (0.50, median),
+                (0.90, upper_quantile),
+            ):
                 error = observed - (estimate + adjustment)
                 fold_losses.append(np.maximum(quantile * error, (quantile - 1) * error))
             losses.append(np.mean(np.vstack(fold_losses), axis=0))
@@ -418,13 +441,45 @@ def prequential_interval_quality(
             "pinball_loss_medio": np.nan,
             "observacoes_avaliadas": 0,
             "dobras_avaliadas": 0,
+            "escalas_volatilidade": scales_used,
         }
     return {
         "coverage_p10_p90": float(np.concatenate(coverages).mean()),
         "pinball_loss_medio": float(np.concatenate(losses).mean()),
         "observacoes_avaliadas": int(sum(len(values) for values in coverages)),
         "dobras_avaliadas": scored_folds,
+        "escalas_volatilidade": scales_used,
     }
+
+
+def prequential_interval_quality(
+    actuals_by_fold: list[np.ndarray], predictions_by_fold: list[np.ndarray]
+) -> dict[str, float | int | list[float]]:
+    """Avalia o intervalo fixo usando somente resíduos de dobras anteriores."""
+    return _prequential_interval_quality(
+        actuals_by_fold,
+        predictions_by_fold,
+        volatility_conditioned=False,
+    )
+
+
+def prequential_interval_quality_volatility(
+    actuals_by_fold: list[np.ndarray],
+    predictions_by_fold: list[np.ndarray],
+    *,
+    volatility_window: int = 6,
+    scale_floor: float = 0.5,
+    scale_ceiling: float = 2.0,
+) -> dict[str, float | int | list[float]]:
+    """Avalia P10–P90 com largura escalada pela volatilidade residual recente, sem vazamento."""
+    return _prequential_interval_quality(
+        actuals_by_fold,
+        predictions_by_fold,
+        volatility_conditioned=True,
+        volatility_window=volatility_window,
+        scale_floor=scale_floor,
+        scale_ceiling=scale_ceiling,
+    )
 
 
 def run_backtest(
@@ -533,6 +588,9 @@ def run_backtest(
         "residual_diagnostics": diagnostics,
         "interval_quality": _interval_quality(actuals, winner_predictions, residuals),
         "prequential_interval_quality": prequential_interval_quality(
+            actuals_by_model[winner], predictions_by_model[winner]
+        ),
+        "prequential_interval_quality_volatility": prequential_interval_quality_volatility(
             actuals_by_model[winner], predictions_by_model[winner]
         ),
         "fold_details": pd.DataFrame(fold_details),

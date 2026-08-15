@@ -178,3 +178,9 @@ O projeto possui **81 testes aprovados** cobrindo ingestão, governança tempora
 - [6] [Efron (1979) — Bootstrap Methods](https://doi.org/10.1214/aos/1176344552)
 - [7] [FRED — Consumer Price Index (`CPIAUCSL`)](https://fred.stlouisfed.org/series/CPIAUCSL)
 - [8] [FRED — Industrial Production Index (`INDPRO`)](https://fred.stlouisfed.org/series/INDPRO)
+
+### Backtest conjunto de lags e intervalos condicionais
+
+O backtest controlado da especificação conjunta `y_lag1`, `y_lag2`, `y_lag3`, `y_lag6`, `y_lag9` e `y_lag12` está documentado em [`docs/BACKTEST_LAGS_VOLATILIDADE.md`](docs/BACKTEST_LAGS_VOLATILIDADE.md) e pode ser reproduzido por `PYTHONPATH=src python3 scripts/evaluate_joint_lags_volatility.py`. O desafiante reduziu o MAPE de 3,6460% para 3,0936%, o RMSE de 0,7739 para 0,6988 e elevou o p-valor do Ljung–Box OOS agrupado de 0,0376 para 0,1070. Ainda assim, permanece como desafiante do painel diagnóstico, pois o MAPE continua acima de 2,87% e a cobertura prequential fixa foi 75,00%, abaixo da meta nominal de 80%.
+
+A calibração P10–P90 condicionada à volatilidade residual recente também foi implementada em `src/analysis.py` e avaliada sem vazamento temporal. Ela reduziu a cobertura para 58,33% tanto no modelo atual quanto na especificação conjunta; por isso, a abordagem fixa prequential permanece o padrão do sistema.

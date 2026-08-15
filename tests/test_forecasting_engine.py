@@ -12,6 +12,7 @@ from analysis import (
     metricas,
     prepare_data,
     prequential_interval_quality,
+    prequential_interval_quality_volatility,
     run_backtest,
 )
 from econometric_diagnostics import diagnose_residuals
@@ -57,15 +58,19 @@ def test_backtest_and_probabilistic_forecast_expose_quantiles():
     assert backtest["interval_quality"]["pinball_loss_medio"] >= 0
     assert backtest["prequential_interval_quality"]["observacoes_avaliadas"] == 3
     assert 0 <= backtest["prequential_interval_quality"]["coverage_p10_p90"] <= 1
+    assert "prequential_interval_quality_volatility" in backtest
+    assert 0 <= backtest["prequential_interval_quality_volatility"]["coverage_p10_p90"] <= 1
 
 
 def test_prequential_calibration_does_not_use_future_fold_residuals():
     actuals = [np.array([0.0, 0.0]), np.array([10.0, 10.0])]
     predictions = [np.array([0.0, 0.0]), np.array([0.0, 0.0])]
     quality = prequential_interval_quality(actuals, predictions)
+    volatility_quality = prequential_interval_quality_volatility(actuals, predictions)
     assert quality["observacoes_avaliadas"] == 2
     assert quality["dobras_avaliadas"] == 1
     assert quality["coverage_p10_p90"] == 0.0
+    assert volatility_quality["observacoes_avaliadas"] == 2
     assert quality["pinball_loss_medio"] >= 0
 
 

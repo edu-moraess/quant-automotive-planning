@@ -12,6 +12,8 @@ from analysis import (  # noqa: E402
     converter_demanda_veiculos,
     metricas,
     prepare_data,
+    prequential_interval_quality,
+    prequential_interval_quality_volatility,
     resolver_plano_producao,
 )
 
@@ -76,3 +78,16 @@ def test_prepare_data_rejects_empty_market_series():
 def test_metricas_rejects_non_finite_predictions():
     with pytest.raises(ValueError, match="não podem conter NaN"):
         metricas(np.array([10.0, 12.0]), np.array([10.0, np.nan]))
+
+
+def test_prequential_volatility_interval_keeps_same_scoring_contract():
+    actuals = [np.array([10.0, 10.5]), np.array([10.2, 11.0]), np.array([10.8, 11.2])]
+    predictions = [np.array([10.0, 10.0]), np.array([10.0, 10.0]), np.array([10.0, 10.0])]
+    fixed = prequential_interval_quality(actuals, predictions)
+    volatility = prequential_interval_quality_volatility(actuals, predictions)
+
+    assert fixed["observacoes_avaliadas"] == 4
+    assert volatility["observacoes_avaliadas"] == 4
+    assert 0 <= fixed["coverage_p10_p90"] <= 1
+    assert 0 <= volatility["coverage_p10_p90"] <= 1
+    assert len(volatility["escalas_volatilidade"]) == 2
