@@ -71,6 +71,10 @@ _V2_PERF_FILE = DATA_DIR / "model_artifacts" / "model_performance_v2.json"
 _N_FOLDS = 3
 _FOLD_SIZE = 6
 
+# Critério OOS agrupado: 18 resíduos permitem um teste conjunto, mas não um lag alto.
+GROUPED_OOS_LB_LAG = 3
+GROUPED_OOS_LB_PVALUE_MIN = 0.05
+
 
 def _load_feature_store_market(store_dir: Path) -> pd.DataFrame:
     """Lê as partições mensais do feature_builder sem entidade (mercado agregado)."""
@@ -263,6 +267,7 @@ def walk_forward_ols(matrix: pd.DataFrame, *, estimator: str = "newey_west") -> 
     all_actuals: list[np.ndarray] = []
     all_preds: list[np.ndarray] = []
     all_residuals: list[np.ndarray] = []
+    all_oos_errors: list[np.ndarray] = []
     last_result = None
 
     for fold in range(_N_FOLDS):
@@ -313,6 +318,13 @@ def walk_forward_ols(matrix: pd.DataFrame, *, estimator: str = "newey_west") -> 
         all_actuals.append(y_test)
         all_preds.append(preds)
         all_residuals.append(residuals_train)
+        all_oos_errors.append(errors)
+
+    # Ljung–Box primário sobre todos os resíduos OOS, mantendo a ordem temporal.
+    oos_residuals = np.concatenate(all_oos_errors)
+    grouped_lb = acorr_ljungbox(oos_residuals, lags=[GROUPED_OOS_LB_LAG], return_df=True)
+    grouped_lb_stat = float(grouped_lb["lb_stat"].iloc[0])
+    grouped_lb_pvalue = float(grouped_lb["lb_pvalue"].iloc[0])
 
     # Métricas agregadas.
     mapes = [m["mape"] for m in fold_metrics]
@@ -344,6 +356,11 @@ def walk_forward_ols(matrix: pd.DataFrame, *, estimator: str = "newey_west") -> 
         "rmse_medio": float(np.mean(rmses)),
         "durbin_watson_medio": float(np.mean(dws)),
         "durbin_watson_ultima_dobra": float(dws[-1]),
+        "durbin_watson_papel": "descritivo; não participa do aceite binário",
+        "ljung_box_oos_grouped_lag": GROUPED_OOS_LB_LAG,
+        "ljung_box_oos_grouped_stat": grouped_lb_stat,
+        "ljung_box_oos_grouped_pvalue": grouped_lb_pvalue,
+        "n_oos_residuals": int(len(oos_residuals)),
         "coverage_p10_p90": float(np.mean(coverages)),
         "pinball_loss_medio": float(np.mean(pinballs)),
         "n_obs_treino_final": int(len(matrix) - _FOLD_SIZE),
@@ -353,6 +370,7 @@ def walk_forward_ols(matrix: pd.DataFrame, *, estimator: str = "newey_west") -> 
         "actuals": np.concatenate(all_actuals),
         "predictions": np.concatenate(all_preds),
         "residuals": np.concatenate(all_residuals),
+        "oos_residuals": oos_residuals,
     }
 
 
@@ -430,19 +448,22 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
         except Exception:
             pass
 
-    # Metas de aceite v2.2 — seleção temporal com diferenças macroeconômicas.
+    # Aceite v2.3: dependência serial OOS agrupada; DW por dobra é descritivo.
     metas = {
-        "durbin_watson_min": 1.72,
+        "ljung_box_oos_grouped_lag": GROUPED_OOS_LB_LAG,
+        "ljung_box_oos_grouped_pvalue_min": GROUPED_OOS_LB_PVALUE_MIN,
         "mape_max_pct": 2.87,
         "coverage_p10_p90_min": 0.75,
     }
     resultados = {
-        "durbin_watson_medio": metrics["durbin_watson_medio"],
+        "ljung_box_oos_grouped_pvalue": metrics["ljung_box_oos_grouped_pvalue"],
         "mape_medio_pct": metrics["mape_medio"],
         "coverage_p10_p90": metrics["coverage_p10_p90"],
     }
     aceite = {
-        "durbin_watson": resultados["durbin_watson_medio"] >= metas["durbin_watson_min"],
+        "ljung_box_oos_grouped": (
+            resultados["ljung_box_oos_grouped_pvalue"] >= metas["ljung_box_oos_grouped_pvalue_min"]
+        ),
         "mape": resultados["mape_medio_pct"] <= metas["mape_max_pct"],
         "coverage": resultados["coverage_p10_p90"] >= metas["coverage_p10_p90_min"],
     }
@@ -464,6 +485,8 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
         "nao_alimenta_forecast_principal": True,
         "forecast_principal_app": "Regressão com defasagens (src/analysis.py e src/forecast_engine.py)",
         "status_operacional": "aprovado" if all(aceite.values()) else "nao_aprovado",
+        "criterio_dependencia_serial_primario": "Ljung–Box OOS agrupado das 3 dobras, lag 3, n=18",
+        "durbin_watson_uso": "descritivo; não participa do aceite binário",
         "criterios_aceite_reprovados": [nome for nome, aprovado in aceite.items() if not aprovado],
         "n_folds": metrics["n_folds"],
         "fold_size_meses": metrics["fold_size"],
@@ -476,6 +499,11 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
             "rmse_medio": round(metrics["rmse_medio"], 4),
             "durbin_watson_medio": round(metrics["durbin_watson_medio"], 4),
             "durbin_watson_ultima_dobra": round(metrics["durbin_watson_ultima_dobra"], 4),
+            "durbin_watson_papel": "descritivo",
+            "ljung_box_oos_grouped_lag": metrics["ljung_box_oos_grouped_lag"],
+            "ljung_box_oos_grouped_stat": round(metrics["ljung_box_oos_grouped_stat"], 4),
+            "ljung_box_oos_grouped_pvalue": round(metrics["ljung_box_oos_grouped_pvalue"], 4),
+            "n_oos_residuals": metrics["n_oos_residuals"],
             "coverage_p10_p90": round(metrics["coverage_p10_p90"], 4),
             "pinball_loss_medio": round(metrics["pinball_loss_medio"], 4),
         },

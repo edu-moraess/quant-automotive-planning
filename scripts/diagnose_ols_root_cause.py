@@ -36,6 +36,7 @@ def fit_folds(matrix: pd.DataFrame, estimator: str) -> dict[str, object]:
     x_all = matrix[feature_cols].to_numpy(dtype=float)
     y_all = matrix["y"].to_numpy(dtype=float)
     fold_rows: list[dict[str, object]] = []
+    all_oos_errors: list[np.ndarray] = []
     for fold in range(fm._N_FOLDS):
         train_end = start_test + fold * fm._FOLD_SIZE
         test_end = train_end + fm._FOLD_SIZE
@@ -76,11 +77,18 @@ def fit_folds(matrix: pd.DataFrame, estimator: str) -> dict[str, object]:
             row["cusum_critical_5pct"] = float(cusum_critical[1][1])
         except Exception as error:
             row["cusum_error"] = str(error)
+        all_oos_errors.append(oos_errors)
         fold_rows.append(row)
+    grouped_errors = np.concatenate(all_oos_errors)
+    grouped_lb = acorr_ljungbox(grouped_errors, lags=[fm.GROUPED_OOS_LB_LAG], return_df=True)
     return {
         "estimator": estimator,
         "folds": fold_rows,
         "dw_mean": float(np.mean([row["dw_oos"] for row in fold_rows])),
+        "ljung_box_oos_grouped_lag": fm.GROUPED_OOS_LB_LAG,
+        "ljung_box_oos_grouped_stat": float(grouped_lb["lb_stat"].iloc[0]),
+        "ljung_box_oos_grouped_pvalue": float(grouped_lb["lb_pvalue"].iloc[0]),
+        "n_oos_residuals": int(len(grouped_errors)),
     }
 
 

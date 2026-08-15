@@ -1539,6 +1539,10 @@ with tab_market:
                     "dw_medio": results["durbin_watson_medio"],
                     "dw_ultima_dobra": results["durbin_watson_ultima_dobra"],
                     "coverage": results["coverage_p10_p90"],
+                    "ljung_box_oos_stat": results["ljung_box_oos_grouped_stat"],
+                    "ljung_box_oos_pvalue": results["ljung_box_oos_grouped_pvalue"],
+                    "ljung_box_oos_lag": results["ljung_box_oos_grouped_lag"],
+                    "n_oos_residuals": results["n_oos_residuals"],
                     "fold_diagnostics": results["fold_metrics"],
                 }
 
@@ -1559,8 +1563,13 @@ with tab_market:
                 "Não há candidatos avaliados e descartados persistidos; drivers ausentes foram omitidos por indisponibilidade no feature store."
             )
             vertical_metric("MAPE walk-forward", f"{ols_diagnostic['mape']:.2f}%")
-            vertical_metric("Durbin–Watson médio", f"{ols_diagnostic['dw_medio']:.3f}")
-            vertical_metric("Durbin–Watson última dobra", f"{ols_diagnostic['dw_ultima_dobra']:.3f}")
+            vertical_metric(
+                "Ljung–Box OOS agrupado",
+                f"lag {ols_diagnostic['ljung_box_oos_lag']}, n={ols_diagnostic['n_oos_residuals']}",
+            )
+            vertical_metric("p-valor Ljung–Box OOS", f"{ols_diagnostic['ljung_box_oos_pvalue']:.4f}")
+            vertical_metric("DW médio por dobra", f"{ols_diagnostic['dw_medio']:.3f} (descritivo)")
+            vertical_metric("DW última dobra", f"{ols_diagnostic['dw_ultima_dobra']:.3f} (descritivo)")
             vertical_metric("Cobertura P10–P90", f"{ols_diagnostic['coverage']:.2%}")
             st.markdown("#### Resíduos: treino versus OOS")
             vertical_metric(
@@ -1585,8 +1594,8 @@ with tab_market:
                 "Ljung–Box e ARCH usam os resíduos do treino; DW e ACF/PACF OOS usam somente os seis meses de cada dobra."
             )
             st.warning(
-                "Artefato não aprovado para uso operacional: os critérios de DW médio e MAPE não foram atingidos. "
-                "A seção abaixo é interpretativa e não substitui o forecast principal."
+                "Artefato não aprovado para uso operacional: o Ljung–Box OOS agrupado, o MAPE ou a cobertura não atingiram as metas. "
+                "O DW por dobra é apenas descritivo; esta seção é interpretativa e não substitui o forecast principal."
             )
             if not coef_df.empty:
                 fig_coef = go.Figure()

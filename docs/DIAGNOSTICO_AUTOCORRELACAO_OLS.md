@@ -95,6 +95,20 @@ Portanto, o Newey–West **não compensa** a autocorrelação no sentido de alte
 
 A comparação foi feita com a mesma matriz, os mesmos cortes temporais e as mesmas três dobras.
 
+## Critério de aceite revisado
+
+O critério primário de dependência serial OOS passou a ser o **Ljung–Box aplicado aos 18 resíduos OOS agrupados**, preservando a ordem temporal entre as três dobras. O teste usa `lag=3`, porque 18 observações não sustentam um diagnóstico confiável com lags altos; o lag 3 verifica dependência conjunta de curto prazo sem consumir a maior parte dos graus de liberdade.
+
+A meta revisada é:
+
+> **Aceitar a dimensão de dependência serial quando o p-valor do Ljung–Box OOS agrupado, lag 3, for ≥ 0,05.**
+
+Essa meta é mais apropriada que exigir `DW ≥ 1,72` em cada dobra porque o DW anterior era calculado em somente seis erros OOS. Na dobra 1, o erro médio foi `+0,5147`, o último erro respondeu por `43,12%` da soma absoluta e o DW bruto `0,9969` subiu para `1,3384` após centrar os erros. O Ljung–Box agrupado usa os 18 erros preservando a sequência temporal, reduzindo a dependência da decisão em um único ponto extremo e permitindo avaliar a autocorrelação conjunta.
+
+O DW por dobra continua sendo persistido e reportado para inspeção, mas agora possui papel exclusivamente descritivo. Ele não aparece em `metas_aceite`, `resultado_aceite` ou `criterios_aceite_reprovados`. A meta de Ljung–Box não prova que o modelo esteja correto em todos os regimes; ela é uma regra de aceite mais estável para a dependência serial OOS agregada, que continua sendo avaliada junto de MAPE e cobertura.
+
+No OLS atual, o Ljung–Box agrupado teve estatística `8,4480` e p-valor `0,0376`, portanto **não atingiu** a meta `p ≥ 0,05`. No GLSAR, a estatística foi `8,7144` e o p-valor `0,0333`, também reprovado. A mudança de critério é metodologicamente válida, mas não mascara a dependência serial OOS observada.
+
 | Métrica | OLS Newey–West | GLSAR AR(1) | Diferença GLSAR − OLS |
 |---|---:|---:|---:|
 | MAPE médio | 3,6460% | **3,5833%** | −0,0627 pp |
@@ -105,11 +119,11 @@ A comparação foi feita com a mesma matriz, os mesmos cortes temporais e as mes
 | Cobertura P10–P90 | **88,89%** | 83,33% | −5,56 pp |
 | Pinball Loss | **0,1923** | 0,1936 | +0,0013 |
 
-GLSAR melhora o MAPE e o DW médio, mas mantém a primeira dobra muito abaixo de 1,72, reduz a cobertura e piora marginalmente o Pinball Loss e o RMSE. Como a causa raiz não foi identificada como AR(1) persistente e os critérios agregados continuam incompletos, **GLSAR não deve ser promovido ao forecast principal**.
+GLSAR melhora o MAPE e o DW médio, mas o Ljung–Box OOS agrupado continua reprovado (`p=0,0333`), reduz a cobertura e piora marginalmente o Pinball Loss e o RMSE. Como a dependência serial agrupada não foi eliminada e os critérios agregados continuam incompletos, **GLSAR não deve ser promovido ao forecast principal**.
 
 ## Decisão técnica
 
-A conclusão revisada é que existem **dois diagnósticos simultâneos**. O baixo DW da primeira dobra é dominado por viés de nível e ponto extremo em horizonte OOS curto; entretanto, os testes de Ljung–Box e ARCH confirmam que a especificação ainda deixa dependência serial e variância condicional não constante nos resíduos de treino. Não foi confirmada uma sazonalidade ausente como explicação suficiente nem uma quebra estrutural estatisticamente demonstrada. O OLS Newey–West permanece como painel diagnóstico; GLSAR permanece como contingência e benchmark de resíduos.
+A conclusão revisada é que existem **dois diagnósticos simultâneos**. O baixo DW da primeira dobra é dominado por viés de nível e ponto extremo em horizonte OOS curto; por isso, o DW por dobra foi retirado do aceite binário. O Ljung–Box OOS agrupado, agora primário, ainda reprova a meta (`p=0,0376 < 0,05`) e confirma que a dependência serial não desaparece quando os 18 erros são avaliados em conjunto. Além disso, Ljung–Box e ARCH nos resíduos de treino confirmam estrutura serial e variância condicional não constante. Não foi confirmada uma sazonalidade ausente como explicação suficiente nem uma quebra estrutural estatisticamente demonstrada. O OLS Newey–West permanece como painel diagnóstico; GLSAR permanece como contingência e benchmark de resíduos.
 
 O próximo experimento recomendado é avaliar, em backtest controlado, uma família de lags distribuídos entre 1, 2, 3, 6, 9 e 12 meses e uma calibração probabilística condicional à volatilidade, sempre com as mesmas dobras temporais. Não se deve adicionar `y_lag12` isoladamente ou promover GLSAR apenas para elevar o DW médio.
 

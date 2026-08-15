@@ -15,8 +15,10 @@
   "nao_alimenta_forecast_principal": true,
   "forecast_principal_app": "Regressão com defasagens (src/analysis.py e src/forecast_engine.py)",
   "status_operacional": "nao_aprovado",
+  "criterio_dependencia_serial_primario": "Ljung–Box OOS agrupado das 3 dobras, lag 3, n=18",
+  "durbin_watson_uso": "descritivo; não participa do aceite binário",
   "criterios_aceite_reprovados": [
-    "durbin_watson",
+    "ljung_box_oos_grouped",
     "mape"
   ],
   "n_folds": 3,
@@ -35,16 +37,22 @@
     "rmse_medio": 0.7491,
     "durbin_watson_medio": 1.57,
     "durbin_watson_ultima_dobra": 1.9211,
+    "durbin_watson_papel": "descritivo",
+    "ljung_box_oos_grouped_lag": 3,
+    "ljung_box_oos_grouped_stat": 8.448,
+    "ljung_box_oos_grouped_pvalue": 0.0376,
+    "n_oos_residuals": 18,
     "coverage_p10_p90": 0.8889,
     "pinball_loss_medio": 0.1923
   },
   "metas_aceite": {
-    "durbin_watson_min": 1.72,
+    "ljung_box_oos_grouped_lag": 3,
+    "ljung_box_oos_grouped_pvalue_min": 0.05,
     "mape_max_pct": 2.87,
     "coverage_p10_p90_min": 0.75
   },
   "resultado_aceite": {
-    "durbin_watson": false,
+    "ljung_box_oos_grouped": false,
     "mape": false,
     "coverage": true
   },

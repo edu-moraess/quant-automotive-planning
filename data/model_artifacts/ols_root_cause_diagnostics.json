@@ -227,7 +227,11 @@
         "cusum_critical_5pct": 1.36
       }
     ],
-    "dw_mean": 1.570021648731493
+    "dw_mean": 1.570021648731493,
+    "ljung_box_oos_grouped_lag": 3,
+    "ljung_box_oos_grouped_stat": 8.44802022900653,
+    "ljung_box_oos_grouped_pvalue": 0.03760546346956503,
+    "n_oos_residuals": 18
   },
   "glsar": {
     "estimator": "glsar",
@@ -431,7 +435,11 @@
         "cusum_critical_5pct": 1.36
       }
     ],
-    "dw_mean": 1.635084295934636
+    "dw_mean": 1.635084295934636,
+    "ljung_box_oos_grouped_lag": 3,
+    "ljung_box_oos_grouped_stat": 8.71441576391283,
+    "ljung_box_oos_grouped_pvalue": 0.03333902499968314,
+    "n_oos_residuals": 18
   },
   "ols_with_y_lag12": {
     "estimator": "newey_west",
@@ -635,7 +643,11 @@
         "cusum_critical_5pct": 1.36
       }
     ],
-    "dw_mean": 1.6215786311397355
+    "dw_mean": 1.6215786311397355,
+    "ljung_box_oos_grouped_lag": 3,
+    "ljung_box_oos_grouped_stat": 7.853924783471932,
+    "ljung_box_oos_grouped_pvalue": 0.049129106379013535,
+    "n_oos_residuals": 18
   },
   "glsar_with_y_lag12": {
     "estimator": "glsar",
@@ -839,7 +851,11 @@
         "cusum_critical_5pct": 1.36
       }
     ],
-    "dw_mean": 1.648223841310153
+    "dw_mean": 1.648223841310153,
+    "ljung_box_oos_grouped_lag": 3,
+    "ljung_box_oos_grouped_stat": 8.243800747729018,
+    "ljung_box_oos_grouped_pvalue": 0.04123284633814016,
+    "n_oos_residuals": 18
   },
   "hac_vs_classic_first_fold_train": {
     "max_abs_param_difference": 0.0,
