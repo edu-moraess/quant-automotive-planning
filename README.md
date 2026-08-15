@@ -41,6 +41,8 @@ O motor de mercado valida esquema e frequência, consolida a série em base mens
 
 O modelo escolhido é reajustado sobre o histórico. O módulo `probabilistic_forecast.py` compara Normal, Student-t, bootstrap iid e moving block usando coverage e Pinball Loss em calibração prequential. Somente resíduos de dobras anteriores à dobra avaliada entram na calibração. O método, seed, origem dos resíduos, horizonte, período de treino e métricas de validação são persistidos nos metadados do forecast. O intervalo representa incerteza empírica de previsão, e não um limite causal ou garantia operacional.
 
+A política única de aceite distingue pisos operacionais de alvos nominais exploratórios. Qualquer variante que altere o ponto, a distribuição de erro ou as simulações deve preservar, contra o baseline vigente, `VaR_95`, `CVaR_95`, `stockout_probability` e `expected_backlog_units`. Essa regra está formalizada em `src/acceptance_policy.py` e é serializada nos artefatos para impedir que uma redução aparente de risco seja tratada como melhoria sem evidência estatística robusta.
+
 ### OLS Newey–West v2.3 e autocorrelação residual
 
 O OLS v2.3 é um **artefato diagnóstico**, não o motor de previsão utilizado no planejamento. Ele serve para avaliar persistência residual, contribuição relativa de drivers e adequação econométrica. O forecast operacional segue a implementação ativa da Regressão com defasagens em `src/analysis.py`. O `src/forecast_engine.py` é planejado, não integrado, e não deve ser interpretado como fonte de resultados da interface até que exista uma integração explícita e validada.

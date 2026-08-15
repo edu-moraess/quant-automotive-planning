@@ -90,6 +90,13 @@ def test_performance_artifact_describes_effective_regressors_and_app_role(tmp_pa
     assert payload["metas_aceite"]["mape_nominal_target_max_pct"] == 2.87
     assert payload["metas_aceite"]["coverage_p10_p90_min"] == 0.75
     assert payload["metas_aceite"]["coverage_nominal_target"] == 0.80
+    assert payload["metas_aceite"]["tail_metrics_required"] == [
+        "VaR_95",
+        "CVaR_95",
+        "stockout_probability",
+        "expected_backlog_units",
+    ]
+    assert payload["metas_aceite"]["tail_preservation_direction"] == "not_below_baseline"
     assert payload["metricas"]["durbin_watson_papel"] == "descritivo"
     assert "durbin_watson" not in payload["resultado_aceite"]
     assert payload["criterios_aceite_reprovados"] == []

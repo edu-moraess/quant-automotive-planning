@@ -15,8 +15,11 @@ A política revisada mantém o rigor dos diagnósticos estatísticos. Ljung–Bo
 | Incerteza | Cobertura P10–P90 ≥ 75% | Cobertura P10–P90 ≥ 80% | O piso é compatível com o melhor resultado OOS reproduzível observado |
 | Diagnósticos de resíduos | ARCH e CUSUM executados e reportados | Sem relaxamento | São evidências de adequação, não substitutos de validação OOS |
 | DW por dobra | Descritivo | Descritivo | Nunca é critério binário isolado |
+| Preservação da cauda | VaR95, CVaR95, probabilidade de stockout e backlog esperado não podem ficar abaixo do baseline vigente | Sem relaxamento | Obrigatório em qualquer teste que propague uma variante ao Risk Engine |
 
 A especificação só pode ser chamada de **aceita pelo piso** quando passa simultaneamente o Ljung–Box primário, o MAPE de 4,00% e a cobertura de 75% na métrica OOS declarada pelo artefato. O alvo nominal continua sendo exibido para acompanhar a distância até uma qualidade mais ambiciosa, mas não deve ser confundido com requisito documentado de negócio.
+
+Quando uma variante altera o ponto de previsão, a distribuição de erro ou as simulações consumidas pelo Risk Engine, a aceitação exige também a preservação da cauda contra o baseline vigente. Os indicadores canônicos são `VaR_95`, `CVaR_95`, `stockout_probability` e `expected_backlog_units`; cada um deve permanecer maior ou igual ao respectivo valor do baseline, salvo evidência estatística robusta e documentada de que o baseline superestima risco. Essa regra é parte do contrato da política, e não apenas uma condição narrativa de um relatório experimental.
 
 ## Base empírica usada para recalibrar
 
@@ -30,7 +33,7 @@ A política não afirma que qualquer modelo esteja pronto para uso operacional. 
 
 O p-valor do Ljung–Box é avaliado no lag 3 com os resíduos OOS agrupados e preservando a ordem temporal. Lags 6 e 12 continuam sendo reportados como diagnósticos adicionais, especialmente no modelo operacional, que mostrou dependência acumulada no bloco 7–12. ARCH e CUSUM continuam presentes nos artefatos, mas não são convertidos artificialmente em uma aprovação binária quando a hipótese testada não é diretamente equivalente à qualidade preditiva OOS.
 
-A política é implementada em [`src/acceptance_policy.py`](../src/acceptance_policy.py) e consumida pelo OLS, pelo experimento de lags conjuntos, pelo diagnóstico operacional e pela calibração probabilística. Os artefatos persistem a versão e os dois níveis de meta para evitar divergência textual ou numérica.
+A política é implementada em [`src/acceptance_policy.py`](../src/acceptance_policy.py) e consumida pelo OLS, pelo experimento de lags conjuntos, pelo diagnóstico operacional e pela calibração probabilística. A política serializa também `tail_metrics_required` e `tail_preservation_direction`, para que os artefatos dual point+tail usem o mesmo contrato. Os artefatos persistem a versão e os dois níveis de meta para evitar divergência textual ou numérica.
 
 ## Referências
 

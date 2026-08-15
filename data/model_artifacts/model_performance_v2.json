@@ -59,7 +59,14 @@
     "diagnostic_tests_required": [
       "ARCH",
       "CUSUM"
-    ]
+    ],
+    "tail_metrics_required": [
+      "VaR_95",
+      "CVaR_95",
+      "stockout_probability",
+      "expected_backlog_units"
+    ],
+    "tail_preservation_direction": "not_below_baseline"
   },
   "resultado_aceite": {
     "ljung_box_oos_grouped": true,

@@ -22,11 +22,19 @@ class AcceptancePolicy:
     coverage_acceptance_min: float = 0.75
     coverage_nominal_target: float = 0.80
     diagnostic_tests_required: tuple[str, ...] = ("ARCH", "CUSUM")
+    tail_metrics_required: tuple[str, ...] = (
+        "VaR_95",
+        "CVaR_95",
+        "stockout_probability",
+        "expected_backlog_units",
+    )
+    tail_preservation_direction: str = "not_below_baseline"
 
     def as_dict(self) -> dict[str, object]:
         """Retorna uma representação JSON-serializável da política."""
         payload = asdict(self)
         payload["diagnostic_tests_required"] = list(self.diagnostic_tests_required)
+        payload["tail_metrics_required"] = list(self.tail_metrics_required)
         return payload
 
 

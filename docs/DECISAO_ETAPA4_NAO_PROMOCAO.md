@@ -49,7 +49,7 @@ O baseline passa o piso de MAPE de 4,00% e o critério primário de Ljung–Box 
 
 A evidência é compatível com uma dependência de horizonte mais longo que não é resolvida por um ajuste AR(1) curto sobre os resíduos. Essa dependência, particularmente no intervalo de lags 7–12, fica registrada como **limitação conhecida, não como critério para alterar o modelo sem novo teste**.
 
-O monitoramento futuro deverá acompanhar a cobertura prequential, o Ljung–Box agrupado no lag 3 como métrica primária e o comportamento no lag 12 como diagnóstico secundário. Uma mudança só poderá ser promovida após backtest walk-forward isolado, comparação explícita contra o baseline e ausência de deterioração material em MAPE, RMSE, cobertura e Pinball Loss.
+O monitoramento futuro deverá acompanhar a cobertura prequential, o Ljung–Box agrupado no lag 3 como métrica primária e o comportamento no lag 12 como diagnóstico secundário. Uma mudança só poderá ser promovida após backtest walk-forward isolado, comparação explícita contra o baseline e ausência de deterioração material em MAPE, RMSE, cobertura e Pinball Loss. Quando tocar o Caminho B, também deve preservar `VaR_95`, `CVaR_95`, `stockout_probability` e `expected_backlog_units`, conforme o contrato canônico em [`docs/POLITICA_ACEITE_MODELOS.md`](POLITICA_ACEITE_MODELOS.md).
 
 ## Critérios de encerramento da Etapa 4
 
@@ -59,6 +59,7 @@ O monitoramento futuro deverá acompanhar a cobertura prequential, o Ljung–Box
 | Especificação operacional preservada | Atendido |
 | Cadeia Risk Engine/Robust Planning/Decision Intelligence preservada | Atendido |
 | Limitação nos lags 7–12 registrada | Atendido |
+| Regra de preservação da cauda formalizada na política canônica | Atendido após a revisão da Etapa 2 |
 | Recalculo downstream evitado por ausência de mudança de input | Atendido |
 | Artefato bruto e script reproduzível publicados | Atendido |
 | Testes completos | 85 aprovados |

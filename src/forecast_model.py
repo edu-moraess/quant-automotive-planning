@@ -464,6 +464,8 @@ def save_performance_v2(metrics: dict[str, Any], path: Path | None = None) -> Pa
         "coverage_p10_p90_min": ACCEPTANCE_POLICY.coverage_acceptance_min,
         "coverage_nominal_target": ACCEPTANCE_POLICY.coverage_nominal_target,
         "diagnostic_tests_required": list(ACCEPTANCE_POLICY.diagnostic_tests_required),
+        "tail_metrics_required": list(ACCEPTANCE_POLICY.tail_metrics_required),
+        "tail_preservation_direction": ACCEPTANCE_POLICY.tail_preservation_direction,
     }
     resultados = {
         "ljung_box_oos_grouped_pvalue": metrics["ljung_box_oos_grouped_pvalue"],

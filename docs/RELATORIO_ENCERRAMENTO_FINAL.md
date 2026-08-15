@@ -2,7 +2,7 @@
 
 ## Síntese executiva
 
-O projeto `Quant Automotive Intelligence & Planning` está tecnicamente fechado no escopo das cinco etapas originais e possui um registro adicional de encerramento final. O repositório público está publicado na branch `main`, com o commit final [`840d544`](https://github.com/edu-moraess/quant-automotive-planning/commit/840d544). A auditoria final encontrou a branch sincronizada com `origin/main`, sem alterações locais pendentes, e confirmou que o repositório é público.
+O projeto `Quant Automotive Intelligence & Planning` está tecnicamente fechado no escopo das cinco etapas originais e possui um registro adicional de encerramento final. O repositório público está publicado na branch `main`, com o commit de referência atual [`d248ffb`](https://github.com/edu-moraess/quant-automotive-planning/commit/d248ffb). A auditoria final encontrou a branch sincronizada com `origin/main`, sem alterações locais pendentes no estado publicado, e confirmou que o repositório é público.
 
 A arquitetura mantém uma separação essencial entre o **forecast operacional**, que alimenta planejamento e risco, e o **OLS Newey–West**, que atua como painel explicativo de drivers. O OLS v2.3 foi validado nos pisos estatísticos do painel diagnóstico. O forecast operacional atual continua aprovado em MAPE e Ljung–Box primário, mas não passa o piso de cobertura prequential; portanto, não deve ser descrito como completamente validado.
 
@@ -15,8 +15,8 @@ A arquitetura mantém uma separação essencial entre o **forecast operacional**
 | Repositório | `edu-moraess/quant-automotive-planning` |
 | Visibilidade | Público |
 | Branch padrão | `main` |
-| Commit final | `840d544` |
-| Sincronização local/remota | `HEAD = origin/main` |
+| Commit de referência atual | `d248ffb` |
+| Sincronização local/remota | `HEAD = origin/main` após a revisão |
 | Alterações locais pendentes | Nenhuma |
 | Qualidade automatizada | 85 testes aprovados; Ruff limpo; formatação válida; compilação válida |
 | Smoke test Streamlit | HTTP 200 em porta livre 8511 |
@@ -43,9 +43,9 @@ O Durbin–Watson por dobra foi rebaixado a métrica descritiva, pois seis obser
 
 ## Decisões metodológicas encerradas
 
-A Etapa 1 documentou `src/forecast_engine.py` como **planejado, não integrado**, mantendo `src/analysis.py` como fonte de verdade operacional. A Etapa 2 centralizou a política de aceite em `src/acceptance_policy.py` e separou pisos empíricos de alvos nominais. A Etapa 3 testou correções AR(1) de resíduos e viés recente no modelo operacional sem promover nenhuma alteração. A Etapa 4 formalizou a não promoção e confirmou que não era necessário recalcular Risk Engine, VaR, CVaR, Robust Planning ou Decision Intelligence. A Etapa 5 promoveu os lags conjuntos somente no painel diagnóstico OLS e regenerou o artefato oficial v2.3.
+A Etapa 1 documentou `src/forecast_engine.py` como **planejado, não integrado**, mantendo `src/analysis.py` como fonte de verdade operacional. A Etapa 2 centralizou a política de aceite em `src/acceptance_policy.py`, separou pisos empíricos de alvos nominais e formalizou a preservação de `VaR_95`, `CVaR_95`, `stockout_probability` e `expected_backlog_units` contra o baseline. A Etapa 3 testou correções AR(1) de resíduos e viés recente no modelo operacional sem promover nenhuma alteração. A Etapa 4 formalizou a não promoção e confirmou que não era necessário recalcular Risk Engine, VaR, CVaR, Robust Planning ou Decision Intelligence. A Etapa 5 promoveu os lags conjuntos somente no painel diagnóstico OLS e regenerou o artefato oficial v2.3.
 
-O resultado da Etapa 3 permanece importante: a correção AR(1) reduziu o MAPE apenas marginalmente, não melhorou a cobertura e elevou levemente o RMSE; a correção de viés recente piorou MAPE, RMSE, cobertura e dependência nos lags mais longos. A dependência residual de médio alcance, especialmente nos lags 7–12, permanece uma limitação conhecida do forecast operacional.
+O resultado da Etapa 3 permanece importante: a correção AR(1) reduziu o MAPE apenas marginalmente, não melhorou a cobertura e elevou levemente o RMSE; a correção de viés recente piorou MAPE, RMSE, cobertura e dependência nos lags mais longos. O experimento adicional de viés móvel com janelas de 3, 6, 9 e 12 resíduos também foi rejeitado: a janela 3 melhorou o Ljung–Box lag 12, mas piorou o ponto e manteve a cobertura em 66,67%; as janelas 9 e 12 reduziram a cauda de risco abaixo do baseline. A dependência residual de médio alcance, especialmente nos lags 7–12, permanece uma limitação conhecida e monitorada do forecast operacional.
 
 ## Arquitetura operacional confirmada
 
@@ -76,7 +76,7 @@ A janela OOS possui poucos pontos para decisões de alta granularidade. O result
 
 ## Recomendações futuras
 
-A próxima evolução deve concentrar-se no forecast operacional, não em novas alterações cosméticas do OLS diagnóstico. Qualquer nova especificação deve ser testada com walk-forward isolado contra `lag_1 + lag_12`, preservando MAPE, RMSE, cobertura, Pinball Loss e Ljung–Box agrupado. Uma janela OOS mais longa deve ser priorizada antes de calibrar variância condicional ou promover novos drivers macroeconômicos.
+A próxima evolução deve concentrar-se no forecast operacional, não em novas alterações cosméticas do OLS diagnóstico. Qualquer nova especificação deve ser testada com walk-forward isolado contra `lag_1 + lag_12`, preservando MAPE, RMSE, cobertura, Pinball Loss e Ljung–Box agrupado. Uma janela OOS mais longa deve ser priorizada antes de calibrar variância condicional, testar novas correções aditivas de ponto ou promover novos drivers macroeconômicos. A política canônica agora exige explicitamente a preservação da cauda quando uma variante for propagada ao Risk Engine.
 
 Nenhuma dessas recomendações foi aplicada neste encerramento. O estado publicado é reproduzível, auditável e adequado para apresentação acadêmica e técnica, desde que a distinção entre **painel diagnóstico validado** e **forecast operacional ainda limitado em cobertura** seja preservada.
 

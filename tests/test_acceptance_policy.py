@@ -16,9 +16,23 @@ def test_acceptance_policy_separates_floor_from_nominal_targets():
     assert ACCEPTANCE_POLICY.coverage_acceptance_min == 0.75
     assert ACCEPTANCE_POLICY.coverage_nominal_target == 0.80
     assert ACCEPTANCE_POLICY.diagnostic_tests_required == ("ARCH", "CUSUM")
+    assert ACCEPTANCE_POLICY.tail_metrics_required == (
+        "VaR_95",
+        "CVaR_95",
+        "stockout_probability",
+        "expected_backlog_units",
+    )
+    assert ACCEPTANCE_POLICY.tail_preservation_direction == "not_below_baseline"
 
 
 def test_acceptance_policy_serializes_without_tuple_specifics():
     payload = ACCEPTANCE_POLICY.as_dict()
     assert payload["version"] == "2026.08"
     assert payload["diagnostic_tests_required"] == ["ARCH", "CUSUM"]
+    assert payload["tail_metrics_required"] == [
+        "VaR_95",
+        "CVaR_95",
+        "stockout_probability",
+        "expected_backlog_units",
+    ]
+    assert payload["tail_preservation_direction"] == "not_below_baseline"
